@@ -1,0 +1,21 @@
+{
+  "name": "osbplayer",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.3",
+    "vite": "^7.0.0"
+  },
+  "dependencies": {
+    "@types/howler": "^2.2.12",
+    "@zip.js/zip.js": "^2.7.62",
+    "howler": "^2.2.4",
+    "pixi.js": "^8.10.2"
+  }
+}
