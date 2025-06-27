@@ -46,7 +46,8 @@
       width: 100%;
       height: 100%;
       overflow: auto;
-      zoom: 0.6;
+      position: relative;
+      zoom: 0.75;
     }
 
     button {
@@ -66,6 +67,49 @@
       gap: 1rem;
       background: #101010;
       border-top: 1px solid #181818;
+    }
+
+    .console {
+      background: #1111118a;
+      position: absolute;
+      z-index: 9;
+      padding: 1rem;
+      top: 0;
+      right: 0;
+      border: 1px solid #222;
+      margin: 1rem;
+      overflow: auto;
+      display: none;
+      flex-direction: column;
+      max-width: 90%;
+      max-height: 90%;
+      box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.3);
+      gap: 0.1rem;
+      opacity: 0.9;
+      transition: opacity 0.2s ease-in-out;
+    }
+
+    .console:hover {
+      opacity: 1;
+    }
+
+    .console span {
+      color: #eee;
+      font-family: monospace, sans-serif;
+      font-size: 14px;
+      text-wrap: wrap;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      width: 100%;
+      height: 100%;
+    }
+
+    .console span.error {
+      color: #f89292;
+    }
+
+    .console span.warn {
+      color: #e7e787;
     }
 
     .seek-bar {
@@ -114,7 +158,14 @@
         <option class="placeholder" value="" disabled selected>Difficulty</option>
       </select>
       <p>Assets: <span id="loadingAssets">0</span>/<span id="totalAssets">0</span></p>
-      <p>osu!storyboard player by michioxd - very very under development</p>
+      <p>osu!storyboard player by michioxd</p>
+      <button id="toggleConsole">Toggle Console</button>
+    </div>
+    <div class="console" id="logger">
+      <span>hello world :)</span>
+      <span>osu!storyboard player - very very under development</span>
+      <span>michioxd \w thanks to BadAimWeeb</span>
+      <span>use at your own joy :) - MIT License</span>
     </div>
     <div class="content">
       <canvas id="canvas"></canvas>

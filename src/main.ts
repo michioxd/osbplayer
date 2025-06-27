@@ -1,231 +1,9 @@
-import { Application, Assets, Sprite, Texture } from "pixi.js";
+import { Application, Assets, Sprite, Texture, VERSION as PIXI_VERSION } from "pixi.js";
 import { Howl } from "howler";
 import { ZipReader, BlobReader, TextWriter, BlobWriter } from "@zip.js/zip.js";
-
-enum Layer {
-    Background = 0,
-    Fail = 1,
-    Pass = 2,
-    Foreground = 3,
-    Overlay = 4,
-}
-
-enum Origin {
-    TopLeft = 0,
-    TopCentre = 1,
-    TopRight = 2,
-    CentreLeft = 3,
-    Centre = 4,
-    CentreRight = 5,
-    BottomLeft = 6,
-    BottomCentre = 7,
-    BottomRight = 8,
-}
-
-enum EventType {
-    F = "F",
-    S = "S",
-    V = "V",
-    R = "R",
-    M = "M",
-    MX = "MX",
-    MY = "MY",
-    C = "C",
-    P = "P",
-}
-
-enum Easing {
-    None = 0,
-    Out = 1,
-    In = 2,
-    InQuad = 3,
-    OutQuad = 4,
-    InOutQuad = 5,
-    InCubic = 6,
-    OutCubic = 7,
-    InOutCubic = 8,
-    InQuart = 9,
-    OutQuart = 10,
-    InOutQuart = 11,
-    InQuint = 12,
-    OutQuint = 13,
-    InOutQuint = 14,
-    InSine = 15,
-    OutSine = 16,
-    InOutSine = 17,
-    InExpo = 18,
-    OutExpo = 19,
-    InOutExpo = 20,
-    InCirc = 21,
-    OutCirc = 22,
-    InOutCirc = 23,
-    InElastic = 24,
-    OutElastic = 25,
-    OutElasticHalf = 26,
-    OutElasticQuarter = 27,
-    InOutElastic = 28,
-    InBack = 29,
-    OutBack = 30,
-    InOutBack = 31,
-    InBounce = 32,
-    OutBounce = 33,
-    InOutBounce = 34,
-    Step = 35,
-}
-
-enum ParameterType {
-    FlipH = "H",
-    FlipV = "V",
-    Additive = "A",
-}
-
-// enum LoopType {
-//     LoopForever = 0,
-//     LoopOnce = 1
-// }
-
-const LayerStrings: { [key: string]: Layer } = {
-    Background: Layer.Background,
-    Fail: Layer.Fail,
-    Pass: Layer.Pass,
-    Foreground: Layer.Foreground,
-    Overlay: Layer.Overlay,
-};
-
-const OriginStrings: { [key: string]: Origin } = {
-    TopLeft: Origin.TopLeft,
-    TopCentre: Origin.TopCentre,
-    TopRight: Origin.TopRight,
-    CentreLeft: Origin.CentreLeft,
-    Centre: Origin.Centre,
-    CentreRight: Origin.CentreRight,
-    BottomLeft: Origin.BottomLeft,
-    BottomCentre: Origin.BottomCentre,
-    BottomRight: Origin.BottomRight,
-};
-
-const EventTypeStrings: { [key: string]: EventType } = {
-    F: EventType.F,
-    S: EventType.S,
-    V: EventType.V,
-    R: EventType.R,
-    M: EventType.M,
-    MX: EventType.MX,
-    MY: EventType.MY,
-    C: EventType.C,
-    P: EventType.P,
-};
-
-interface Keyframe<T> {
-    time: number;
-    value: T;
-    easing: Easing;
-    interpolationOffset: number;
-}
-
-interface ParameterRange {
-    startTime: number;
-    endTime: number;
-}
-
-interface StoryboardEvent {
-    type: EventType;
-    easing: Easing;
-    startTime: number;
-    endTime: number;
-    startValue: number | number[] | ParameterType;
-    endValue: number | number[] | ParameterType;
-}
-
-interface StoryboardSprite {
-    layer: Layer;
-    origin: Origin;
-    filePath: string;
-    x: number;
-    y: number;
-    events: StoryboardEvent[];
-    loops: StoryboardLoop[];
-    triggers: StoryboardTrigger[];
-
-    positionKeyframes: [Keyframe<number>[], Keyframe<number>[]];
-    rotationKeyframes: Keyframe<number>[];
-    scaleKeyframes: [Keyframe<number>[], Keyframe<number>[]];
-    colourKeyframes: Keyframe<number[]>[];
-    opacityKeyframes: Keyframe<number>[];
-    flipHRange: ParameterRange[];
-    flipVRange: ParameterRange[];
-    additiveRange: ParameterRange[];
-
-    activeTime: [number, number];
-    visibleTime: [number, number];
-
-    expandedEvents: StoryboardEvent[];
-}
-
-// interface StoryboardAnimation extends StoryboardSprite {
-//     frameCount: number;
-//     frameDelay: number;
-//     loopType: LoopType;
-// }
-
-interface StoryboardLoop {
-    startTime: number;
-    loopCount: number;
-    events: StoryboardEvent[];
-    loopLength: number;
-    endTime: number;
-}
-
-interface StoryboardTrigger {
-    triggerName: string;
-    startTime: number;
-    endTime: number;
-    groupNumber: number;
-    events: StoryboardEvent[];
-    activated: boolean;
-    loopLength: number;
-}
-
-interface StoryboardBackground {
-    path: string;
-    x: number;
-    y: number;
-}
-
-interface StoryboardVideo {
-    startTime: number;
-    path: string;
-    x: number;
-    y: number;
-}
-
-interface StoryboardSample {
-    startTime: number;
-    layer: Layer;
-    path: string;
-    volume: number;
-}
-
-interface StoryboardData {
-    sprites: StoryboardSprite[];
-    samples: StoryboardSample[];
-    audioFilename: string;
-    background?: StoryboardBackground;
-    video?: StoryboardVideo;
-    duration: number;
-    audioLeadIn: number;
-    mapTitle: string;
-    mapArtist: string;
-    mapper: string;
-    diffName: string;
-}
-
-interface Difficulty {
-    name: string;
-    mapper: string;
-    filePath: string;
-    fileData: string;
-}
+import { type StoryboardData, type Difficulty, type StoryboardSprite, type StoryboardLoop, type StoryboardTrigger, type StoryboardEvent, type Keyframe, type ParameterRange, EventType, ParameterType, type StoryboardSample, type StoryboardBackground, type StoryboardVideo, EventTypeStrings } from "./types";
+import { Easing, Layer, Origin, LayerStrings, OriginStrings } from "./types";
+import lg from "./log";
 
 class OsuStoryboardPlayer {
     private app: Application;
@@ -244,8 +22,8 @@ class OsuStoryboardPlayer {
     private totalAssets = 0;
     private loadingAssets = 0;
 
-    private mapTitle: string = "";
-    private mapArtist: string = "";
+    // private mapTitle: string = "";
+    // private mapArtist: string = "";
     private diffs: Record<string, Difficulty> = {};
     private zip: ZipReader<any> | null = null;
     private osbFile: string = "";
@@ -269,6 +47,8 @@ class OsuStoryboardPlayer {
             antialias: true,
             hello: true
         });
+
+        lg.log(`Pixi.js v${PIXI_VERSION}`);
 
         const canvas = document.getElementById("canvas") as HTMLCanvasElement;
         if (canvas) {
@@ -338,7 +118,7 @@ class OsuStoryboardPlayer {
             this.diffs = {};
             await this.loadOszFile(file);
         } catch (error) {
-            console.error("Error loading OSZ file:", error);
+            lg.error("Error loading OSZ file:", error);
             alert("Error loading OSZ file");
         }
     }
@@ -367,7 +147,7 @@ class OsuStoryboardPlayer {
                 const writer = new TextWriter();
                 await entry.getData!(writer);
                 this.osbFile = await writer.getData();
-                console.log(`Extracted .osb file: ${entry.filename}`);
+                lg.log(`Extracted .osb file: ${entry.filename}`);
             }
         }
 
@@ -413,7 +193,7 @@ class OsuStoryboardPlayer {
                     await entry.getData!(writer);
                     const blob = await writer.getData();
                     this.assets[entry.filename] = blob;
-                    console.log(
+                    lg.log(
                         `Extracted asset: ${entry.filename} (${blob.size} bytes)`
                     );
                 }
@@ -461,7 +241,7 @@ class OsuStoryboardPlayer {
                         this.storyboard?.duration || 0
                     );
                     this.updateTimeDisplay();
-                    console.log(
+                    lg.log(
                         `Audio loaded: duration=${audioDuration}ms, storyboard duration=${this.storyboard?.duration}ms, final duration=${this.duration}ms`
                     );
                 },
@@ -472,13 +252,12 @@ class OsuStoryboardPlayer {
 
         this.initializeStoryboard();
         this.setupStoryboard();
-        console.log(this.storyboard);
     }
 
     private initializeStoryboard() {
         if (!this.storyboard) return;
 
-        console.log(
+        lg.log(
             "Initializing storyboard (" +
             this.storyboard.sprites.length +
             " sprites, " +
@@ -492,7 +271,7 @@ class OsuStoryboardPlayer {
             this.initializeSprite(sprite);
         }
 
-        console.log(
+        lg.log(
             "Initialized " + this.storyboard.sprites.length + " sprites/animations"
         );
     }
@@ -771,14 +550,6 @@ class OsuStoryboardPlayer {
             startTime: e.startTime,
             endTime: e.startTime === e.endTime ? sprite.activeTime[1] : e.endTime,
         }));
-
-        if (sprite.filePath === "sb\\e36\\title.png")
-            console.log(
-                sprite.filePath,
-                sprite.flipHRange,
-                sprite.flipVRange,
-                sprite.additiveRange
-            );
     }
 
     private addKeyframesForEvents<T>(
@@ -1018,7 +789,7 @@ class OsuStoryboardPlayer {
                         };
                         sprites.push(currentSprite);
                     } else {
-                        console.log(`Skipping gameplay element: ${filePath}`);
+                        lg.log(`Skipping gameplay element: ${filePath}`);
                         currentSprite = null;
                     }
                 } else if (parts[0] === "Animation" && parts.length >= 9) {
@@ -1212,7 +983,7 @@ class OsuStoryboardPlayer {
             }
         }
 
-        console.log(`Parsed ${sprites.length} storyboard sprites`, sprites);
+        lg.log(`Parsed ${sprites.length} storyboard sprites`);
 
         return {
             sprites,
@@ -1329,7 +1100,7 @@ class OsuStoryboardPlayer {
 
             const result = findAssetHelper(path, assets);
             if (!result) {
-                console.log(`Failed to find asset: ${path}`);
+                lg.log(`Failed to find asset: ${path}`);
             }
             return result;
         };
@@ -1348,7 +1119,7 @@ class OsuStoryboardPlayer {
             }
 
             const backSlash = path.replace(/\//g, "\\");
-            console.log("backSlash", backSlash);
+            lg.log("backSlash", backSlash);
             if (assets[backSlash]) {
                 return assets[backSlash];
             }
@@ -1372,7 +1143,7 @@ class OsuStoryboardPlayer {
                 }
             }
 
-            console.log(`Asset not found: ${path}`);
+            lg.log(`Asset not found: ${path}`);
             return null;
         };
 
@@ -1383,7 +1154,7 @@ class OsuStoryboardPlayer {
 
             if (blob && blob.size > 0) {
                 try {
-                    console.log(`Processing asset: ${path} (${blob.size} bytes)`);
+                    lg.log(`Processing asset: ${path} (${blob.size} bytes)`);
 
                     const extension = path.toLowerCase().split(".").pop();
                     const mimeTypeMap: { [key: string]: string } = {
@@ -1400,7 +1171,7 @@ class OsuStoryboardPlayer {
                     const properBlob = new Blob([blob], { type: mimeType });
                     const url = URL.createObjectURL(properBlob);
 
-                    console.log(`Loading ${path} with MIME type: ${mimeType}`);
+                    lg.log(`Loading ${path} with MIME type: ${mimeType}`);
 
                     const texture = await new Promise<Texture>((resolve, reject) => {
                         const img = new Image();
@@ -1431,7 +1202,7 @@ class OsuStoryboardPlayer {
                                 }
 
                                 if (!hasContent) {
-                                    console.warn(
+                                    lg.warn(
                                         `Image appears to be empty or fully transparent: ${path}`
                                     );
                                 }
@@ -1439,12 +1210,12 @@ class OsuStoryboardPlayer {
                                 const texture = Texture.from(canvas);
 
                                 Assets.cache.set(path, texture);
-                                console.log(
+                                lg.log(
                                     `Successfully loaded and cached texture: ${path} (${img.width}x${img.height}, hasContent: ${hasContent})`
                                 );
                                 resolve(texture);
                             } catch (e) {
-                                console.error(
+                                lg.error(
                                     `Failed to create texture from loaded image: ${path}`,
                                     e
                                 );
@@ -1452,7 +1223,7 @@ class OsuStoryboardPlayer {
                             }
                         };
                         img.onerror = (e) => {
-                            console.error(`Failed to load image: ${path}`, e);
+                            lg.error(`Failed to load image: ${path}`, e);
                             reject(e);
                         };
                         img.src = url;
@@ -1465,12 +1236,12 @@ class OsuStoryboardPlayer {
 
                     setTimeout(() => URL.revokeObjectURL(url), 1000);
                 } catch (error) {
-                    console.warn(`Failed to load asset: ${path}`, error);
+                    lg.warn(`Failed to load asset: ${path}`, error);
                     this.loadingAssets++;
                     this.updateLoadingDisplay();
                 }
             } else {
-                console.warn(`Asset not found: ${path}`);
+                lg.warn(`Asset not found: ${path}`);
                 this.loadingAssets++;
                 this.updateLoadingDisplay();
             }
@@ -1516,7 +1287,7 @@ class OsuStoryboardPlayer {
                     this.app.stage.addChild(bgSprite);
                 }
             } catch (error) {
-                console.warn(
+                lg.warn(
                     `Failed to create background sprite: ${this.storyboard.background.path}`,
                     error
                 );
@@ -1526,7 +1297,7 @@ class OsuStoryboardPlayer {
         const sortedSprites = [...this.storyboard.sprites].sort(
             (a, b) => a.layer - b.layer
         );
-        console.log(`Sorted ${sortedSprites.length} sprites by layer`);
+        lg.log(`Sorted ${sortedSprites.length} sprites by layer`);
 
         for (const oldSprites of this.app.stage.children) {
             this.app.stage.removeChild(oldSprites);
@@ -1541,7 +1312,7 @@ class OsuStoryboardPlayer {
                 spriteData.loops.length > 0 ||
                 spriteData.triggers.length > 0;
             if (!hasEvents) {
-                console.log(
+                lg.log(
                     `Skipping sprite creation (no events): ${spriteData.filePath}`
                 );
                 continue;
@@ -1596,7 +1367,7 @@ class OsuStoryboardPlayer {
                 this.app.stage.addChild(sprite);
                 this.spriteObjects.set(`sprite_${originalIndex}`, sprite);
             } catch (error) {
-                console.warn(`Failed to create sprite: ${spriteData.filePath}`, error);
+                lg.warn(`Failed to create sprite: ${spriteData.filePath}`, error);
             }
         }
 
@@ -1608,7 +1379,6 @@ class OsuStoryboardPlayer {
 
     private updateStoryboard() {
         if (!this.storyboard) {
-            console.warn("Storyboard data is not loaded");
             return;
         };
 
@@ -1706,6 +1476,10 @@ class OsuStoryboardPlayer {
                 Math.floor(colorB);
 
             sprite.blendMode = additive ? "add" : "normal";
+
+            if (spriteData.filePath === 'sb\\greyscale.jpg') {
+                lg.log(positionX, positionY, this.frameScale);
+            }
         }
 
         this.updateTimeDisplay();
@@ -1949,7 +1723,7 @@ class OsuStoryboardPlayer {
             setTimeout(() => {
                 const audioTime = this.audio!.seek() * 1000;
                 if (Math.abs(audioTime - this.currentTime) > 100) {
-                    console.warn(
+                    lg.warn(
                         `Audio/storyboard sync issue at play: audio=${audioTime}ms, storyboard=${this.currentTime}ms`
                     );
                 }
@@ -1982,7 +1756,7 @@ class OsuStoryboardPlayer {
 
             const actualAudioTime = this.audio.seek() * 1000;
             if (Math.abs(actualAudioTime - this.currentTime) > 50) {
-                console.warn(
+                lg.warn(
                     `Audio seek inaccuracy: target=${this.currentTime}ms, actual=${actualAudioTime}ms`
                 );
             }
@@ -2006,7 +1780,7 @@ class OsuStoryboardPlayer {
 
                 const drift = Math.abs(audioTime - this.currentTime);
                 if (drift > 100) {
-                    console.warn(
+                    lg.warn(
                         `Correcting sync drift: audio=${audioTime}ms, storyboard=${this.currentTime}ms, drift=${drift}ms`
                     );
                     this.currentTime = audioTime;
@@ -2085,4 +1859,20 @@ class OsuStoryboardPlayer {
 
 document.addEventListener("DOMContentLoaded", () => {
     new OsuStoryboardPlayer();
+    const toggleConsoleButton = document.getElementById("toggleConsole");
+
+    const consoleElement = document.getElementById("logger");
+    const savedConsoleVisibility = localStorage.getItem("consoleVisible");
+    if (consoleElement && savedConsoleVisibility !== null) {
+        consoleElement.style.display = savedConsoleVisibility === "true" ? "flex" : "none";
+    }
+
+    toggleConsoleButton?.addEventListener("click", () => {
+        if (consoleElement) {
+            const isVisible = consoleElement.style.display !== "none";
+            const newDisplay = isVisible ? "none" : "flex";
+            consoleElement.style.display = newDisplay;
+            localStorage.setItem("consoleVisible", (newDisplay === "flex").toString());
+        }
+    });
 });
