@@ -1,0 +1,324 @@
+@charset "UTF-8";
+@import "@icon/themify-icons/themify-icons.css";
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #000;
+    color: #eeeeee;
+    font-size: 12px;
+    font-weight: 400;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    overflow: hidden;
+}
+
+a {
+    color: inherit;
+}
+
+.bar {
+    width: 100%;
+    position: fixed;
+    top: -50px;
+    left: 0;
+    height: auto;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border-top: 1px solid #222222aa;
+    background: #111111aa;
+    backdrop-filter: blur(40px);
+    padding: 0.5rem;
+    opacity: 0;
+    transition: 0.25s ease;
+    z-index: 20;
+
+    .progress-bar {
+        width: 100%;
+        flex: 1 1 auto;
+        min-width: 0;
+        height: 7px;
+        background: #262626aa;
+        position: relative;
+        cursor: pointer;
+
+        .progress {
+            width: 0;
+            height: 100%;
+            background: #6b6b6baa;
+        }
+
+        .progress-handle {
+            width: 15px;
+            height: 15px;
+            background: #717171;
+            position: absolute;
+            top: 50%;
+            left: 0;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+        }
+    }
+
+    .time-display {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #cccccc;
+    }
+
+    button {
+        background: #222222aa;
+        border: 1px solid #333333aa;
+        color: #eeeeee;
+        width: 34px;
+        height: 34px;
+        padding: 0.2rem;
+        cursor: pointer;
+        font-size: 20px;
+        transition: background 0.2s, border-color 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover {
+            background: #333333aa;
+            border-color: #444444aa;
+        }
+    }
+
+    &.controls {
+        bottom: -50px;
+        top: unset;
+    }
+
+    &.header {
+        flex-direction: column;
+        gap: 2px;
+        align-items: flex-start;
+        border-bottom: 1px solid #222222aa;
+        border-top: none;
+
+        .title {
+            font-size: 10px;
+            color: #cccccc;
+        }
+    }
+}
+
+#storyboard-host {
+    width: min(100dvw, calc(100dvh * 16 / 9));
+    height: min(100dvh, calc(100dvw * 9 / 16));
+    aspect-ratio: 16 / 9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+#storyboard {
+    background: #000;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.menu-backdrop {
+    position: fixed;
+    z-index: 98;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000000aa;
+    transition: 0.3s;
+    backdrop-filter: blur(16px);
+}
+
+.menu {
+    position: fixed;
+    z-index: 99;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #111111aa;
+    border: 1px solid #222222aa;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    backdrop-filter: blur(40px);
+    box-shadow: 0 0 10px #000000aa;
+    transition: 0.3s;
+    width: min(900px, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
+    overflow: hidden;
+
+    .menu-content {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 0;
+    }
+
+    .menu-diff-section {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 0;
+    }
+
+    .menu-diff-selector {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        max-height: 200px;
+        overflow-y: auto;
+
+        .diff-item {
+            padding: 0.3rem 0.5rem;
+            border: 1px solid #222222aa;
+            background: #222222aa;
+            color: #eeeeee;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+            text-align: left;
+            font: inherit;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+
+            &:hover {
+                background: #333333aa;
+                border-color: #444444aa;
+            }
+
+            &.is-active {
+                border-color: #acacac;
+                background: #484848aa;
+            }
+
+            &.is-empty {
+                cursor: default;
+            }
+        }
+
+        .diff-name {
+            font-size: 13px;
+        }
+
+        .diff-meta {
+            color: #b5b5b5;
+            font-size: 11px;
+        }
+    }
+
+    .loading-state {
+        display: none;
+        flex-direction: column;
+        gap: 6px;
+        padding: 0.75rem;
+        border: 1px solid #2a2a2aaa;
+        background: #171717bb;
+
+        &.show {
+            display: flex;
+        }
+    }
+
+    .loading-state__header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .loading-state__bar {
+        position: relative;
+        width: 100%;
+        height: 10px;
+        background: #252525;
+        overflow: hidden;
+    }
+
+    .loading-state__bar-fill {
+        width: 0;
+        height: 100%;
+        background: #6b6b6b;
+        transition: width 0.15s ease;
+    }
+
+    .loading-state__file {
+        color: #c9c9c9;
+        font-size: 11px;
+        word-break: break-all;
+    }
+
+    &[data-mode="loading"] {
+        width: min(520px, calc(100vw - 2rem));
+
+        .menu-diff-section {
+            display: none;
+        }
+    }
+
+    &[data-mode="difficulty"] {
+        .loading-state {
+            display: none !important;
+        }
+    }
+}
+
+#app {
+    width: 100dvw;
+    height: 100dvh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    cursor: default;
+
+    &.show {
+        .bar {
+            top: 0;
+            opacity: 1;
+
+            &.controls {
+                bottom: 0;
+                top: unset
+            }
+        }
+    }
+
+    &.hide_menu {
+        .menu-backdrop {
+            opacity: 0;
+            pointer-events: none;
+            visibility: hidden;
+        }
+
+        .menu {
+            opacity: 0;
+            pointer-events: none;
+            visibility: hidden;
+        }
+    }
+}
+
+@media (max-width: 768px) {
+    .bar.controls {
+        width: calc(100% - 1rem);
+        gap: 6px;
+    }
+
+    .menu {
+        padding: 0.75rem;
+    }
+}

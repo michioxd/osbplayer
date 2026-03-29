@@ -1,189 +1,83 @@
 <!doctype html>
 <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="color-scheme" content="dark" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>osu!storyboard player</title>
+    </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="color-scheme" content="dark light">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>osu!storyboard player</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      font-size: 12px;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    }
-
-    body {
-      background-color: #000;
-      color: #eee;
-    }
-
-    .main {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      width: 100vw;
-    }
-
-    .header {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      border-bottom: 1px solid #181818;
-      background: #101010;
-      width: 100%;
-      padding: 1rem;
-      gap: 1rem;
-    }
-
-    .content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      height: 100%;
-      overflow: auto;
-      position: relative;
-      zoom: 0.75;
-    }
-
-    button {
-      background: #181818;
-      border: 1px solid #222;
-      color: #eee;
-      padding: 0.3rem 0.8rem;
-      cursor: pointer;
-    }
-
-    .controls {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      width: 100%;
-      padding: 1rem;
-      gap: 1rem;
-      background: #101010;
-      border-top: 1px solid #181818;
-    }
-
-    .console {
-      background: #1111118a;
-      position: absolute;
-      z-index: 9;
-      padding: 1rem;
-      top: 0;
-      right: 0;
-      border: 1px solid #222;
-      margin: 1rem;
-      overflow: auto;
-      display: none;
-      flex-direction: column;
-      max-width: 90%;
-      max-height: 90%;
-      box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.3);
-      gap: 0.1rem;
-      opacity: 0.9;
-      transition: opacity 0.2s ease-in-out;
-    }
-
-    .console:hover {
-      opacity: 1;
-    }
-
-    .console span {
-      color: #eee;
-      font-family: monospace, sans-serif;
-      font-size: 14px;
-      text-wrap: wrap;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      width: 100%;
-      height: 100%;
-    }
-
-    .console span.error {
-      color: #f89292;
-    }
-
-    .console span.warn {
-      color: #e7e787;
-    }
-
-    .seek-bar {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      width: 100%;
-      height: 10px;
-      background: #222;
-      position: relative;
-    }
-
-    .seek-bar-fill {
-      background: #333;
-      height: 100%;
-      width: 0%;
-    }
-
-    .seek-bar-handle {
-      background: #7e7e7e;
-      height: 100%;
-      position: absolute;
-      left: 0;
-      width: 7px;
-      cursor: pointer;
-    }
-
-    .time-display {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      width: fit-content;
-      height: 100%;
-    }
-  </style>
-</head>
-
-<body>
-  <div class="main">
-    <div class="header">
-      <p>
-        Select an .osz file to play
-      </p>
-      <input type="file" id="fileInput" accept=".osz" />
-      <select id="difficultySelect">
-        <option class="placeholder" value="" disabled selected>Difficulty</option>
-      </select>
-      <p>Assets: <span id="loadingAssets">0</span>/<span id="totalAssets">0</span></p>
-      <p>osu!storyboard player by michioxd - PROTOTYPE FOR TESTING</p>
-      <button id="toggleConsole">Toggle Console</button>
-    </div>
-    <div class="console" id="logger">
-      <span>hello world :)</span>
-      <span>osu!storyboard player - very very under development</span>
-      <span>michioxd \w thanks to BadAimWeeb</span>
-      <span>use at your own joy :) - MIT License</span>
-    </div>
-    <div class="content">
-      <canvas id="canvas"></canvas>
-    </div>
-    <div class="controls">
-      <button id="playButton">Play</button>
-      <div class="seek-bar" id="seekBar">
-        <div class="seek-bar-fill" id="seekBarFill"></div>
-        <div class="seek-bar-handle" id="seekBarHandle"></div>
-      </div>
-      <div class="time-display">
-        <span id="currentTime">00:00</span>
-        <span>/</span>
-        <span id="totalTime">00:00</span>
-      </div>
-    </div>
-  </div>
-  <script type="module" src="/src/main.ts"></script>
-</body>
-
+    <body>
+        <div id="app" class="show">
+            <div class="menu-backdrop"></div>
+            <div class="menu" data-mode="difficulty">
+                <span id="menu-title">Select difficulty</span>
+                <div class="menu-content">
+                    <div id="difficulty-dialog" class="menu-diff-section">
+                        <div class="menu-diff-selector">
+                            <div class="diff-item is-empty">
+                                <span class="diff-name">Please load an `.osz` file</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="loading-state" class="loading-state">
+                        <div class="loading-state__header">
+                            <span>Loading storyboard assets</span>
+                            <span id="loading-percent">0%</span>
+                        </div>
+                        <div class="loading-state__bar">
+                            <div id="loading-progress-fill" class="loading-state__bar-fill"></div>
+                        </div>
+                        <span id="loading-current-file" class="loading-state__file">Waiting for load...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="bar header">
+                <span id="status-text">Initializing assets, please wait...</span>
+                <span class="title"
+                    >osu!storyboard player by michioxd
+                    <a
+                        href="https://github.com/michioxd/osbplayer/commit/%VITE_GIT_COMMIT_FULL%"
+                        target="_blank"
+                        id="git-hash"
+                        title="Build date: %VITE_BUILD_DATE% (%VITE_BUILD_TIME%) - Git commit hash: %VITE_GIT_COMMIT_FULL%"
+                        >%VITE_GIT_CURRENT_BRANCH%.%VITE_GIT_COMMIT%</a
+                    >
+                    <a href="https://github.com/michioxd/osbplayer" target="_blank">fork me on github</a>
+                </span>
+            </div>
+            <div class="bar controls">
+                <button id="play-pause">
+                    <i class="ti ti-control-play"></i>
+                </button>
+                <button id="stop-all" title="Stop playback" aria-label="Stop playback">
+                    <i class="ti ti-control-stop"></i>
+                </button>
+                <div class="time-display">
+                    <span id="current-time">00:00</span>
+                </div>
+                <div class="progress-bar" id="progress-bar">
+                    <div id="progress" class="progress"></div>
+                    <div id="progress-handle" class="progress-handle"></div>
+                </div>
+                <div class="time-display">
+                    <span id="total-time">00:00</span>
+                </div>
+                <button id="open-file" title="Open .osz file" aria-label="Open .osz file">
+                    <i class="ti ti-zip"></i>
+                </button>
+                <button id="show-menu" title="Select difficulty" aria-label="Select difficulty">
+                    <i class="ti ti-menu"></i>
+                </button>
+                <button id="fullscreen-toggle">
+                    <i class="ti ti-fullscreen"></i>
+                </button>
+            </div>
+            <div id="storyboard-host">
+                <canvas id="storyboard"></canvas>
+            </div>
+        </div>
+        <script type="module" src="/src/main.ts"></script>
+    </body>
 </html>
