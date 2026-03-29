@@ -6,9 +6,21 @@ import viteCompression from "vite-plugin-compression";
 
 const buildTime = Date.now();
 const buildDate = new Date(buildTime).toISOString();
-const gitCommit = execSync("git rev-parse --short HEAD").toString().trim();
-const gitCommitFull = execSync("git rev-parse HEAD").toString().trim();
-const gitCurrentBranch = execSync("git rev-parse --abbrev-ref HEAD").toString().trim();
+const gitCommit = getGitValue("git rev-parse --short HEAD", process.env.GIT_COMMIT_SHORT, "unknown");
+const gitCommitFull = getGitValue("git rev-parse HEAD", process.env.GIT_COMMIT, gitCommit);
+const gitCurrentBranch = getGitValue("git rev-parse --abbrev-ref HEAD", process.env.GIT_BRANCH, "unknown");
+
+function getGitValue(command: string, fallbackFromEnv: string | undefined, fallback: string): string {
+    try {
+        return (
+            execSync(command, { stdio: ["ignore", "pipe", "ignore"] })
+                .toString()
+                .trim() || fallback
+        );
+    } catch {
+        return fallbackFromEnv?.trim() || fallback;
+    }
+}
 
 export default defineConfig({
     plugins: [
