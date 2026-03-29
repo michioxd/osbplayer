@@ -26,12 +26,6 @@ export interface RenderSnapshot {
     height: number;
 }
 
-interface RenderVisual {
-    visual: PreparedStoryboardVisual;
-    sprite: Sprite;
-    textures: Texture[];
-}
-
 export class StoryboardRenderer {
     private readonly app = new Application();
     private readonly stageRoot = new Container();
