@@ -14,6 +14,7 @@ import type { LayoutBorder } from "./layoutBorders";
 export const STORYBOARD_WIDTH = 640;
 export const STORYBOARD_HEIGHT = 480;
 const DEFAULT_VIDEO_READY_TIMEOUT_MS = 15_000;
+const EARLY_EFFECT_SETUP_GRACE_MS = 500;
 
 export type GameplayState = "passing" | "failing";
 
@@ -73,7 +74,11 @@ export function renderVisualAtTime(entry: RenderVisual, time: number, gameplaySt
     }
 
     const alpha = keyframeValueAt(visual.opacityKeyframes, time, 1);
-    const uniformScale = keyframeValueAt(visual.uniformScaleKeyframes, time, 1);
+    const uniformScale = keyframeValueAt(
+        visual.uniformScaleKeyframes,
+        time,
+        resolveEarlyUniformScaleDefault(visual, time),
+    );
     const [vectorScaleX, vectorScaleY] = keyframePairValueAt(visual.vectorScaleKeyframes, time, [1, 1]);
 
     const scaleX = uniformScale * vectorScaleX;
@@ -89,7 +94,7 @@ export function renderVisualAtTime(entry: RenderVisual, time: number, gameplaySt
     const colour = keyframeValueAt(visual.colourKeyframes, time, [255, 255, 255]);
     const flipH = isTimeInRanges(visual.flipHRange, time);
     const flipV = isTimeInRanges(visual.flipVRange, time);
-    const additive = isTimeInRanges(visual.additiveRange, time);
+    const additive = isTimeInRanges(visual.additiveRange, time) || shouldBackfillAdditiveRange(visual, time);
     const adjustedAnchor = adjustAnchorForTransforms(visual.origin, [vectorScaleX, vectorScaleY], flipH, flipV);
 
     sprite.visible = true;
@@ -352,6 +357,61 @@ function adjustAnchorForTransforms(
     }
 
     return anchor;
+}
+
+function resolveEarlyUniformScaleDefault(visual: PreparedStoryboardVisual, time: number): number {
+    const firstScaleKeyframe = visual.uniformScaleKeyframes[0];
+    if (!firstScaleKeyframe || time >= firstScaleKeyframe.time) {
+        return 1;
+    }
+
+    if (!shouldBackfillEarlyEffectSetup(visual, firstScaleKeyframe.time)) {
+        return 1;
+    }
+
+    return firstScaleKeyframe.value;
+}
+
+function shouldBackfillAdditiveRange(visual: PreparedStoryboardVisual, time: number): boolean {
+    const firstRange = visual.additiveRange[0];
+    if (!firstRange || time >= firstRange.startTime) {
+        return false;
+    }
+
+    if (!shouldBackfillEarlyEffectSetup(visual, firstRange.startTime)) {
+        return false;
+    }
+
+    return time >= visual.activeTime[0];
+}
+
+function shouldBackfillEarlyEffectSetup(visual: PreparedStoryboardVisual, setupTime: number): boolean {
+    if (setupTime <= visual.activeTime[0] || setupTime - visual.activeTime[0] > EARLY_EFFECT_SETUP_GRACE_MS) {
+        return false;
+    }
+
+    const firstAdditiveRange = visual.additiveRange[0];
+    const firstScaleKeyframe = visual.uniformScaleKeyframes[0];
+
+    if (!firstAdditiveRange || !firstScaleKeyframe) {
+        return false;
+    }
+
+    if (firstAdditiveRange.startTime !== firstScaleKeyframe.time || firstScaleKeyframe.time !== setupTime) {
+        return false;
+    }
+
+    const [firstOpacityKeyframe, secondOpacityKeyframe] = visual.opacityKeyframes;
+    if (!firstOpacityKeyframe || !secondOpacityKeyframe) {
+        return false;
+    }
+
+    return (
+        firstOpacityKeyframe.time === visual.activeTime[0] &&
+        firstOpacityKeyframe.value === 0 &&
+        secondOpacityKeyframe.time === setupTime &&
+        Number(secondOpacityKeyframe.value) > 0
+    );
 }
 
 function shouldRenderForGameplayState(visual: PreparedStoryboardVisual, gameplayState: GameplayState): boolean {
