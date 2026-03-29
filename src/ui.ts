@@ -6,6 +6,8 @@ export interface PlayerUIEvents {
     onOpenFile: () => void;
     onTogglePlay: () => void;
     onToggleMenu: (visible: boolean) => void;
+    onToggleLayoutBorders: () => void;
+    onToggleStats: () => void;
     onToggleFullscreen: () => void;
     onStop: () => void;
     onSelectDifficulty: (difficultyId: string) => void;
@@ -25,6 +27,8 @@ export class PlayerUI {
     private readonly progressHandle = qs<HTMLElement>("#progress-handle");
     private readonly progressBar = qs<HTMLElement>("#progress-bar");
     private readonly playPauseIcon = qs<HTMLElement>("#play-pause i");
+    private readonly layoutBordersButton = qs<HTMLButtonElement>("#toggle-layout-borders");
+    private readonly statsButton = qs<HTMLButtonElement>("#toggle-stats");
     private readonly menuBackdrop = qs<HTMLElement>(".menu-backdrop");
     private readonly difficultySection = qs<HTMLElement>("#difficulty-dialog");
     private readonly diffSelector = qs<HTMLElement>(".menu-diff-selector");
@@ -43,6 +47,8 @@ export class PlayerUI {
         qs<HTMLButtonElement>("#open-file").addEventListener("click", () => this.events.onOpenFile());
         qs<HTMLButtonElement>("#play-pause").addEventListener("click", () => this.events.onTogglePlay());
         qs<HTMLButtonElement>("#show-menu").addEventListener("click", () => this.showDifficultyDialog());
+        this.layoutBordersButton.addEventListener("click", () => this.events.onToggleLayoutBorders());
+        this.statsButton.addEventListener("click", () => this.events.onToggleStats());
         qs<HTMLButtonElement>("#fullscreen-toggle").addEventListener("click", () => this.events.onToggleFullscreen());
         qs<HTMLButtonElement>("#stop-all").addEventListener("click", () => this.events.onStop());
         this.menuBackdrop.addEventListener("click", () => {
@@ -105,6 +111,18 @@ export class PlayerUI {
 
     setPlaybackState(playing: boolean): void {
         this.playPauseIcon.className = playing ? "ti ti-control-pause" : "ti ti-control-play";
+    }
+
+    setLayoutBordersState(enabled: boolean): void {
+        this.layoutBordersButton.classList.toggle("is-active", enabled);
+        this.layoutBordersButton.setAttribute("aria-pressed", String(enabled));
+        this.layoutBordersButton.title = enabled ? "Hide layout borders" : "Show layout borders";
+    }
+
+    setStatsState(enabled: boolean): void {
+        this.statsButton.classList.toggle("is-active", enabled);
+        this.statsButton.setAttribute("aria-pressed", String(enabled));
+        this.statsButton.title = enabled ? "Hide stats overlay" : "Show stats overlay";
     }
 
     setDuration(current: number, total: number): void {

@@ -10,15 +10,26 @@ import { clamp } from "../utils/dom";
 import { getMimeType, isVideoPath } from "../utils/path";
 import { isTimeInRanges, keyframePairValueAt, keyframeValueAt, packRgb } from "./interpolation";
 import type { ResolvedAssets } from "./assets";
+import {
+    colorForVisualLayer,
+    createLayoutBorder,
+    destroyLayoutBorder,
+    syncLayoutBorder,
+    type LayoutBorder,
+} from "./layoutBorders";
+import { resolveGpuInfo, StatsOverlay, STATS_PANEL_MARGIN } from "./statsOverlay";
+import type { RendererStats } from "./statsOverlay";
 
 const STORYBOARD_WIDTH = 640;
 const STORYBOARD_HEIGHT = 480;
 const DEFAULT_VIDEO_READY_TIMEOUT_MS = 15_000;
+const FPS_UPDATE_INTERVAL_MS = 300;
 
 interface RenderVisual {
     visual: PreparedStoryboardVisual;
     sprite: Sprite;
     textures: Texture[];
+    border?: LayoutBorder;
 }
 
 export interface RenderSnapshot {
@@ -30,6 +41,7 @@ export interface RenderSnapshot {
 export class StoryboardRenderer {
     private readonly app = new Application();
     private readonly stageRoot = new Container();
+    private readonly statsOverlay = new StatsOverlay();
     private readonly frameBackground = new Sprite(Texture.WHITE);
     private readonly videoLayer = new Container();
     private readonly playfieldRoot = new Container();
@@ -50,10 +62,19 @@ export class StoryboardRenderer {
     private storyboard?: PreparedStoryboardData;
     private gameplayState: "passing" | "failing" = "passing";
     private backgroundSprite?: Sprite;
+    private backgroundBorder?: LayoutBorder;
     private videoElement?: HTMLVideoElement;
     private videoSprite?: Sprite;
+    private videoBorder?: LayoutBorder;
     private videoEndTime = 0;
     private lastFrameTimestamp = 0;
+    private currentFps = 0;
+    private fpsSampleElapsed = 0;
+    private fpsSampleFrames = 0;
+    private gpuInfo = "Unknown";
+    private initialized = false;
+    private layoutBordersVisible = false;
+    private statsVisible = false;
 
     constructor(canvasHost: HTMLElement) {
         this.canvasHost = canvasHost;
@@ -83,10 +104,13 @@ export class StoryboardRenderer {
         });
 
         this.app.stage.addChild(this.stageRoot);
+        this.app.stage.addChild(this.statsOverlay.container);
         this.canvasHost.replaceChildren(this.app.canvas);
         this.app.canvas.id = "storyboard";
         this.app.canvas.addEventListener("pointermove", this.handlePointerMove);
         this.app.canvas.addEventListener("pointerdown", this.handlePointerMove);
+        this.gpuInfo = resolveGpuInfo(this.app.canvas);
+        this.initialized = true;
         this.resize();
         window.addEventListener("resize", this.resize);
     }
@@ -115,6 +139,12 @@ export class StoryboardRenderer {
                 this.backgroundSprite = new Sprite(texture);
                 this.backgroundSprite.anchor.set(0.5);
                 this.backgroundLayer.addChild(this.backgroundSprite);
+                this.backgroundBorder = createLayoutBorder(
+                    this.backgroundLayer,
+                    0x4dabf7,
+                    1,
+                    storyboard.background.path,
+                );
             }
         }
 
@@ -142,6 +172,7 @@ export class StoryboardRenderer {
                     this.videoSprite.visible = false;
                     this.videoSprite.zIndex = 0;
                     this.videoLayer.addChild(this.videoSprite);
+                    this.videoBorder = createLayoutBorder(this.videoLayer, 0xff922b, 1, storyboard.video.path);
                 }
             }
         }
@@ -161,26 +192,67 @@ export class StoryboardRenderer {
             sprite.zIndex = visual.layer * 10_000 + index;
             this.contentLayer.addChild(sprite);
 
-            this.renderVisuals.push({ visual, sprite, textures });
+            const border = createLayoutBorder(
+                this.contentLayer,
+                colorForVisualLayer(visual.layer),
+                sprite.zIndex + 0.5,
+                visual.filePath,
+            );
+
+            this.renderVisuals.push({ visual, sprite, textures, border });
         });
         this.resize();
         this.renderFrame(0);
     }
 
+    setLayoutBordersVisible(visible: boolean): void {
+        this.layoutBordersVisible = visible;
+        this.updateLayoutBorders();
+        this.app.renderer.render(this.app.stage);
+    }
+
+    areLayoutBordersVisible(): boolean {
+        return this.layoutBordersVisible;
+    }
+
+    setStatsBuildInfo(hash: string, branch: string): void {
+        this.statsOverlay.setBuildInfo(hash, branch);
+        this.updateStatsOverlay();
+        this.renderNow();
+    }
+
+    setStatsVisible(visible: boolean): void {
+        this.statsVisible = visible;
+        this.statsOverlay.setVisible(visible);
+        this.updateStatsOverlay();
+        this.renderNow();
+    }
+
+    areStatsVisible(): boolean {
+        return this.statsVisible;
+    }
+
     play(startTime = this.currentTime): void {
         this.currentTime = clamp(startTime, 0, this.duration);
         this.playing = true;
+        this.currentFps = 0;
+        this.fpsSampleElapsed = 0;
+        this.fpsSampleFrames = 0;
         this.lastFrameTimestamp = performance.now();
         this.scheduleNextFrame();
     }
 
     pause(): void {
         this.playing = false;
+        this.currentFps = 0;
+        this.fpsSampleElapsed = 0;
+        this.fpsSampleFrames = 0;
         if (this.animationFrameHandle) {
             cancelAnimationFrame(this.animationFrameHandle);
             this.animationFrameHandle = 0;
         }
         this.videoElement?.pause();
+        this.updateStatsOverlay();
     }
 
     stop(): void {
@@ -254,6 +326,7 @@ export class StoryboardRenderer {
         this.frameBackground.width = this.frameWidth;
         this.frameBackground.height = STORYBOARD_HEIGHT;
         this.playfieldRoot.position.set((this.frameWidth - STORYBOARD_WIDTH) / 2, 0);
+        this.statsOverlay.setPosition(STATS_PANEL_MARGIN, STATS_PANEL_MARGIN);
 
         if (this.backgroundSprite) {
             const [x, y] = resolveMediaPosition(this.storyboard?.background, STORYBOARD_WIDTH);
@@ -274,6 +347,9 @@ export class StoryboardRenderer {
             this.videoSprite.scale.set(videoScale);
         }
 
+        this.updateLayoutBorders();
+        this.updateStatsOverlay();
+
         this.app.renderer.resize(width, height);
     };
 
@@ -289,6 +365,13 @@ export class StoryboardRenderer {
 
             const delta = timestamp - this.lastFrameTimestamp;
             this.lastFrameTimestamp = timestamp;
+            this.fpsSampleElapsed += delta;
+            this.fpsSampleFrames += 1;
+            if (this.fpsSampleElapsed >= FPS_UPDATE_INTERVAL_MS) {
+                this.currentFps = (this.fpsSampleFrames * 1000) / this.fpsSampleElapsed;
+                this.fpsSampleElapsed = 0;
+                this.fpsSampleFrames = 0;
+            }
             this.currentTime = Math.min(this.duration, this.currentTime + delta);
             this.renderFrame(this.currentTime);
 
@@ -334,6 +417,9 @@ export class StoryboardRenderer {
             renderVisualAtTime(entry, time, this.gameplayState);
         }
 
+        this.updateLayoutBorders();
+        this.updateStatsOverlay();
+
         this.onTick?.(time);
         this.app.renderer.render(this.app.stage);
     }
@@ -344,10 +430,14 @@ export class StoryboardRenderer {
         this.backgroundLayer.removeChildren();
         this.contentLayer.removeChildren();
         this.foregroundLayer.removeChildren();
+        destroyLayoutBorder(this.backgroundBorder);
         this.backgroundSprite?.destroy();
         this.backgroundSprite = undefined;
+        this.backgroundBorder = undefined;
+        destroyLayoutBorder(this.videoBorder);
         this.videoSprite?.destroy();
         this.videoSprite = undefined;
+        this.videoBorder = undefined;
         this.videoEndTime = 0;
 
         if (this.videoElement?.src) {
@@ -357,6 +447,45 @@ export class StoryboardRenderer {
         this.videoElement?.removeAttribute("src");
         this.videoElement?.load();
         this.videoElement = undefined;
+        this.updateStatsOverlay();
+    }
+
+    private updateLayoutBorders(): void {
+        syncLayoutBorder(this.backgroundBorder, this.backgroundSprite, this.layoutBordersVisible);
+        syncLayoutBorder(this.videoBorder, this.videoSprite, this.layoutBordersVisible);
+
+        for (const entry of this.renderVisuals) {
+            syncLayoutBorder(entry.border, entry.sprite, this.layoutBordersVisible);
+        }
+    }
+
+    private updateStatsOverlay(): void {
+        const stats = this.collectStats();
+        this.statsOverlay.update(stats);
+    }
+
+    private renderNow(): void {
+        this.statsOverlay.renderNow(this.app.renderer, this.app.stage, this.initialized);
+    }
+
+    private collectStats(): RendererStats {
+        const visibleElements = this.renderVisuals.reduce((count, entry) => count + Number(entry.sprite.visible), 0);
+        const visibleSprites =
+            visibleElements +
+            Number(Boolean(this.backgroundSprite?.visible)) +
+            Number(Boolean(this.videoSprite?.visible));
+        const totalSprites =
+            this.renderVisuals.length + Number(Boolean(this.backgroundSprite)) + Number(Boolean(this.videoSprite));
+
+        return {
+            fps: this.playing ? this.currentFps : 0,
+            gpu: this.gpuInfo,
+            visibleElements,
+            visibleSprites,
+            totalSprites,
+            renderWidth: this.size.width,
+            renderHeight: this.size.height,
+        };
     }
 }
 

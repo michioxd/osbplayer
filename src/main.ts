@@ -12,7 +12,9 @@ import { qs } from "./utils/dom";
 import { logger } from "./utils/logger";
 
 const CONTROLS_IDLE_TIMEOUT = 2_000;
-const KEYBOARD_SEEK_STEP = 5_000;
+const KEYBOARD_SEEK_STEP = 1_000;
+export const GIT_HASH = import.meta.env.VITE_GIT_COMMIT;
+export const GIT_BRANCH = import.meta.env.VITE_GIT_CURRENT_BRANCH;
 
 export class App {
     private readonly fileInput = document.createElement("input");
@@ -41,6 +43,8 @@ export class App {
             onOpenFile: () => this.fileInput.click(),
             onTogglePlay: () => this.togglePlayback(),
             onToggleMenu: () => this.handleMenuVisibility(),
+            onToggleLayoutBorders: () => this.toggleLayoutBorders(),
+            onToggleStats: () => this.toggleStats(),
             onToggleFullscreen: () => void this.renderer.toggleFullscreen(),
             onStop: () => this.stop(),
             onSelectDifficulty: (difficultyId) => void this.loadDifficultyById(difficultyId),
@@ -51,6 +55,7 @@ export class App {
         this.renderer = new StoryboardRenderer(qs<HTMLElement>("#storyboard-host"));
         this.renderer.setPointerActivityListener(() => this.handlePointerActivity());
         this.renderer.setTickListener((time) => this.handleRenderTick(time));
+        this.renderer.setStatsBuildInfo(GIT_HASH, GIT_BRANCH);
         this.audio.onEnded(() => this.stop());
         window.addEventListener("keydown", this.handleKeydown);
 
@@ -58,6 +63,8 @@ export class App {
         this.ui.setControlsVisible(true);
         this.ui.hideDialog();
         this.ui.setPlaybackState(false);
+        this.ui.setLayoutBordersState(false);
+        this.ui.setStatsState(false);
     }
 
     async init(): Promise<void> {
@@ -218,6 +225,20 @@ export class App {
         } else {
             this.play();
         }
+    }
+
+    private toggleLayoutBorders(): void {
+        const nextVisible = !this.renderer.areLayoutBordersVisible();
+        this.renderer.setLayoutBordersVisible(nextVisible);
+        this.ui.setLayoutBordersState(nextVisible);
+        this.handlePointerActivity();
+    }
+
+    private toggleStats(): void {
+        const nextVisible = !this.renderer.areStatsVisible();
+        this.renderer.setStatsVisible(nextVisible);
+        this.ui.setStatsState(nextVisible);
+        this.handlePointerActivity();
     }
 
     private seek(ratio: number): void {

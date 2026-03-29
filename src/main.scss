@@ -105,6 +105,12 @@ a {
             background: #333333aa;
             border-color: #444444aa;
         }
+
+        &.is-active {
+            background: #4c6ef5aa;
+            border-color: #748ffc;
+            color: #ffffff;
+        }
     }
 
     &.controls {
