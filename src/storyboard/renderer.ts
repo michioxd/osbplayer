@@ -31,7 +31,7 @@ import {
     waitForVideoReady,
 } from "./helpers";
 import type { GameplayState, RenderVisual } from "./helpers";
-import { resolveGpuInfo, StatsOverlay, STATS_PANEL_MARGIN } from "./statsOverlay";
+import { getRendererBackend, resolveGpuInfo, StatsOverlay, STATS_PANEL_MARGIN } from "./statsOverlay";
 import type { RendererStats } from "./statsOverlay";
 
 const FPS_UPDATE_INTERVAL_MS = 300;
@@ -78,6 +78,7 @@ export class StoryboardRenderer {
     private currentFps = 0;
     private fpsSampleElapsed = 0;
     private fpsSampleFrames = 0;
+    private rendererBackend = "Unknown";
     private visibleElementCount = 0;
     private gpuInfo = "Unknown";
     private initialized = false;
@@ -119,6 +120,7 @@ export class StoryboardRenderer {
         this.app.canvas.id = "storyboard";
         this.app.canvas.addEventListener("pointermove", this.handlePointerMove);
         this.app.canvas.addEventListener("pointerdown", this.handlePointerMove);
+        this.rendererBackend = getRendererBackend(this.app.renderer);
         this.gpuInfo = await resolveGpuInfo(this.app.canvas);
         this.initialized = true;
         this.resize();
@@ -534,6 +536,7 @@ export class StoryboardRenderer {
 
         return {
             fps: this.playing ? this.currentFps : 0,
+            backend: this.rendererBackend,
             gpu: this.gpuInfo,
             visibleElements,
             visibleSprites,

@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, TextStyle, VERSION, type Renderer } from "pixi.js";
+import { Container, Graphics, RendererType, Text, TextStyle, VERSION, type Renderer } from "pixi.js";
 
 const UI_PANEL_ALPHA = 0xaa / 0xff;
 const STATS_TEXT_STYLE = new TextStyle({
@@ -12,6 +12,7 @@ export const STATS_PANEL_MARGIN = 16;
 
 export interface RendererStats {
     fps: number;
+    backend: string;
     gpu: string;
     visibleElements: number;
     visibleSprites: number;
@@ -66,6 +67,7 @@ export class StatsOverlay {
         this.text.text = [
             `osu!storyboard player by michioxd ${this.buildInfo}`,
             `FPS: ${formatFps(stats.fps)}`,
+            `Renderer: ${stats.backend}`,
             `GPU: ${stats.gpu}`,
             `Elements visible: ${stats.visibleElements}`,
             `Sprites visible/total: ${stats.visibleSprites}/${stats.totalSprites}`,
@@ -103,6 +105,19 @@ function formatResolution(width: number, height: number): string {
     const safeWidth = Number.isFinite(width) && width > 0 ? Math.round(width) : 0;
     const safeHeight = Number.isFinite(height) && height > 0 ? Math.round(height) : 0;
     return `${safeWidth}x${safeHeight}`;
+}
+
+export function getRendererBackend(renderer: Renderer): string {
+    switch (renderer.type) {
+        case RendererType.WEBGPU:
+            return "WebGPU";
+        case RendererType.WEBGL:
+            return "WebGL";
+        case RendererType.CANVAS:
+            return "Canvas";
+        default:
+            return `Unknown (${renderer.type})`;
+    }
 }
 
 export async function resolveGpuInfo(canvas: HTMLCanvasElement): Promise<string> {
