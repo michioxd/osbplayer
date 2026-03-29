@@ -1,0 +1,28 @@
+name: Publish
+
+on:
+    push:
+        branches: ["main"]
+        paths-ignore:
+            - "README.md"
+            - "LICENSE"
+    workflow_dispatch:
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  submodules: recursive
+                  fetch-depth: 0
+            - uses: oven-sh/setup-bun@v2
+            - run: bun i
+            - run: bun run build && echo "osbplayer.michioxd.ch" > ./dist/CNAME
+            - run: cp ./dist/index.html ./dist/404.html
+            - name: Deploy
+              uses: peaceiris/actions-gh-pages@v4
+              with:
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+                  publish_dir: ./dist
