@@ -51,7 +51,11 @@ export class AudioController {
                 resolve();
             };
 
-            const handlePlayError = (_soundId: number, error: unknown): void => {
+            const handlePlayError = (soundId: number, error: unknown): void => {
+                if (soundId !== this.playbackId) {
+                    return;
+                }
+
                 settled = true;
                 cleanup();
                 reject(new Error(`Failed to play media: ${String(error)}`));
