@@ -241,7 +241,6 @@ function generateVectorScaleKeyframes(
     addKeyframesForEvents(
         target,
         filtered,
-        [1, 1],
         (event, isX) => (Array.isArray(event.startValue) ? event.startValue[isX ? 0 : 1] : 1),
         (event, isX) => (Array.isArray(event.endValue) ? event.endValue[isX ? 0 : 1] : 1),
     );
@@ -284,12 +283,16 @@ function generateOpacityKeyframes(
     }
 
     addKeyframesForSimpleEvents(target, filtered, 1);
-    target.push({
-        time: activeTime[1] + 1,
-        value: 0,
-        easing: Easing.Step,
-        interpolationOffset: activeTime[1] + 1,
-    });
+
+    if (Number.isFinite(activeTime[1])) {
+        target.push({
+            time: activeTime[1] + 1,
+            value: 0,
+            easing: Easing.Step,
+            interpolationOffset: activeTime[1] + 1,
+        });
+    }
+
     sortAndSquash(target);
 }
 
@@ -357,7 +360,6 @@ function addKeyframesForSimpleEvents(
 function addKeyframesForEvents(
     target: [Keyframe<number>[], Keyframe<number>[]],
     events: StoryboardEvent[],
-    defaultValue: [number, number],
     getStart: (event: StoryboardEvent, isX: boolean) => number,
     getEnd: (event: StoryboardEvent, isX: boolean) => number,
 ): void {
