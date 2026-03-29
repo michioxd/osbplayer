@@ -106,6 +106,12 @@ a {
             border-color: #444444aa;
         }
 
+        &#toggle-layout-border-labels {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
         &.is-active {
             background: #4c6ef5aa;
             border-color: #748ffc;

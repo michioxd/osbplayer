@@ -20,6 +20,28 @@ export interface LayoutBorder {
     label: Text;
     color: number;
     assetName: string;
+    lastVisible: boolean;
+    lastTexture?: Texture;
+    lastWidth: number;
+    lastHeight: number;
+    lastLeft: number;
+    lastTop: number;
+    lastPositionX: number;
+    lastPositionY: number;
+    lastScaleX: number;
+    lastScaleY: number;
+    lastRotation: number;
+    lastZIndex: number;
+    lastLabelText: string;
+    lastLabelX: number;
+    lastLabelY: number;
+    lastLabelScaleX: number;
+    lastLabelScaleY: number;
+    lastBackgroundX: number;
+    lastBackgroundY: number;
+    lastBackgroundWidth: number;
+    lastBackgroundHeight: number;
+    labelsVisible: boolean;
 }
 
 export function createLayoutBorder(parent: Container, color: number, zIndex: number, assetPath: string): LayoutBorder {
@@ -53,6 +75,27 @@ export function createLayoutBorder(parent: Container, color: number, zIndex: num
         label,
         color,
         assetName: formatBorderAssetName(assetPath),
+        lastVisible: false,
+        lastWidth: Number.NaN,
+        lastHeight: Number.NaN,
+        lastLeft: Number.NaN,
+        lastTop: Number.NaN,
+        lastPositionX: Number.NaN,
+        lastPositionY: Number.NaN,
+        lastScaleX: Number.NaN,
+        lastScaleY: Number.NaN,
+        lastRotation: Number.NaN,
+        lastZIndex: Number.NaN,
+        lastLabelText: "",
+        lastLabelX: Number.NaN,
+        lastLabelY: Number.NaN,
+        lastLabelScaleX: Number.NaN,
+        lastLabelScaleY: Number.NaN,
+        lastBackgroundX: Number.NaN,
+        lastBackgroundY: Number.NaN,
+        lastBackgroundWidth: Number.NaN,
+        lastBackgroundHeight: Number.NaN,
+        labelsVisible: true,
     };
 }
 
@@ -64,57 +107,138 @@ export function destroyLayoutBorder(border?: LayoutBorder): void {
     border.container.destroy({ children: true, texture: false, textureSource: false });
 }
 
-export function syncLayoutBorder(border: LayoutBorder | undefined, sprite: Sprite | undefined, visible: boolean): void {
+export function syncLayoutBorder(
+    border: LayoutBorder | undefined,
+    sprite: Sprite | undefined,
+    visible: boolean,
+    showLabel: boolean,
+): void {
     if (!border || !sprite || !visible || !sprite.visible) {
-        if (border) {
+        if (border?.lastVisible) {
             border.container.visible = false;
-            border.graphics.clear();
-            border.labelBackground.clear();
+            border.lastVisible = false;
         }
         return;
     }
 
-    const width = getTextureWidth(sprite.texture);
-    const height = getTextureHeight(sprite.texture);
+    const texture = sprite.texture;
+    const width = border.lastTexture === texture ? border.lastWidth : getTextureWidth(texture);
+    const height = border.lastTexture === texture ? border.lastHeight : getTextureHeight(texture);
+
     if (width <= 0 || height <= 0) {
         border.container.visible = false;
+        border.lastVisible = false;
         return;
     }
 
     const left = -sprite.anchor.x * width;
     const top = -sprite.anchor.y * height;
     const lineThickness = 2;
+    const positionX = sprite.position.x;
+    const positionY = sprite.position.y;
+    const scaleX = sprite.scale.x;
+    const scaleY = sprite.scale.y;
+    const rotation = sprite.rotation;
+    const zIndex = sprite.zIndex + 0.5;
 
     border.container.visible = true;
-    border.container.position.copyFrom(sprite.position);
-    border.container.scale.copyFrom(sprite.scale);
-    border.container.rotation = sprite.rotation;
-    border.container.zIndex = sprite.zIndex + 0.5;
+    border.lastVisible = true;
+    if (border.labelsVisible !== showLabel) {
+        border.labelContainer.visible = showLabel;
+        border.labelsVisible = showLabel;
+    }
 
-    border.graphics.clear();
-    border.graphics.rect(left, top, width, height);
-    border.graphics.stroke({
-        color: border.color,
-        width: lineThickness,
-        alpha: 0.95,
-    });
+    if (border.lastPositionX !== positionX || border.lastPositionY !== positionY) {
+        border.container.position.set(positionX, positionY);
+        border.lastPositionX = positionX;
+        border.lastPositionY = positionY;
+    }
 
-    const labelText = `${border.assetName}\n${formatCoordinate(sprite.position.x)}, ${formatCoordinate(sprite.position.y)}`;
-    border.label.text = labelText;
-    border.label.position.set(
-        left + LAYOUT_LABEL_PADDING_X,
-        top + height - border.label.height - LAYOUT_LABEL_PADDING_Y,
-    );
-    border.labelContainer.scale.set(sprite.scale.x < 0 ? -1 : 1, sprite.scale.y < 0 ? -1 : 1);
+    if (border.lastScaleX !== scaleX || border.lastScaleY !== scaleY) {
+        border.container.scale.set(scaleX, scaleY);
+        border.lastScaleX = scaleX;
+        border.lastScaleY = scaleY;
+    }
 
-    const backgroundX = border.label.position.x - LAYOUT_LABEL_PADDING_X;
-    const backgroundY = border.label.position.y - LAYOUT_LABEL_PADDING_Y;
+    if (border.lastRotation !== rotation) {
+        border.container.rotation = rotation;
+        border.lastRotation = rotation;
+    }
+
+    if (border.lastZIndex !== zIndex) {
+        border.container.zIndex = zIndex;
+        border.lastZIndex = zIndex;
+    }
+
+    if (
+        border.lastTexture !== texture ||
+        border.lastWidth !== width ||
+        border.lastHeight !== height ||
+        border.lastLeft !== left ||
+        border.lastTop !== top
+    ) {
+        border.graphics.clear();
+        border.graphics.rect(left, top, width, height);
+        border.graphics.stroke({
+            color: border.color,
+            width: lineThickness,
+            alpha: 0.95,
+        });
+
+        border.lastTexture = texture;
+        border.lastWidth = width;
+        border.lastHeight = height;
+        border.lastLeft = left;
+        border.lastTop = top;
+    }
+
+    if (!showLabel) {
+        return;
+    }
+
+    const labelText = `${border.assetName}\n${formatCoordinate(positionX)}, ${formatCoordinate(positionY)}`;
+    if (border.lastLabelText !== labelText) {
+        border.label.text = labelText;
+        border.lastLabelText = labelText;
+    }
+
+    const labelX = left + LAYOUT_LABEL_PADDING_X;
+    const labelY = top + height - border.label.height - LAYOUT_LABEL_PADDING_Y;
+
+    if (border.lastLabelX !== labelX || border.lastLabelY !== labelY) {
+        border.label.position.set(labelX, labelY);
+        border.lastLabelX = labelX;
+        border.lastLabelY = labelY;
+    }
+
+    const labelScaleX = scaleX < 0 ? -1 : 1;
+    const labelScaleY = scaleY < 0 ? -1 : 1;
+    if (border.lastLabelScaleX !== labelScaleX || border.lastLabelScaleY !== labelScaleY) {
+        border.labelContainer.scale.set(labelScaleX, labelScaleY);
+        border.lastLabelScaleX = labelScaleX;
+        border.lastLabelScaleY = labelScaleY;
+    }
+
+    const backgroundX = labelX - LAYOUT_LABEL_PADDING_X;
+    const backgroundY = labelY - LAYOUT_LABEL_PADDING_Y;
     const backgroundWidth = border.label.width + LAYOUT_LABEL_PADDING_X * 2;
     const backgroundHeight = border.label.height + LAYOUT_LABEL_PADDING_Y * 2;
 
-    border.labelBackground.clear();
-    border.labelBackground.rect(backgroundX, backgroundY, backgroundWidth, backgroundHeight);
-    border.labelBackground.fill({ color: border.color, alpha: 0.9 });
+    if (
+        border.lastBackgroundX !== backgroundX ||
+        border.lastBackgroundY !== backgroundY ||
+        border.lastBackgroundWidth !== backgroundWidth ||
+        border.lastBackgroundHeight !== backgroundHeight
+    ) {
+        border.labelBackground.clear();
+        border.labelBackground.rect(backgroundX, backgroundY, backgroundWidth, backgroundHeight);
+        border.labelBackground.fill({ color: border.color, alpha: 0.9 });
+
+        border.lastBackgroundX = backgroundX;
+        border.lastBackgroundY = backgroundY;
+        border.lastBackgroundWidth = backgroundWidth;
+        border.lastBackgroundHeight = backgroundHeight;
+    }
 }
 
 export function colorForVisualLayer(layer: Layer): number {

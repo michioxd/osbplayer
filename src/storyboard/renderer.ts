@@ -83,6 +83,7 @@ export class StoryboardRenderer {
     private gpuInfo = "Unknown";
     private initialized = false;
     private layoutBordersVisible = false;
+    private layoutBorderLabelsVisible = true;
     private statsVisible = false;
     private activationStartCursor = 0;
     private activationEndCursor = 0;
@@ -239,6 +240,18 @@ export class StoryboardRenderer {
 
     areLayoutBordersVisible(): boolean {
         return this.layoutBordersVisible;
+    }
+
+    setLayoutBorderLabelsVisible(visible: boolean): void {
+        this.layoutBorderLabelsVisible = visible;
+        if (this.layoutBordersVisible) {
+            this.updateLayoutBorders();
+            this.app.renderer.render(this.app.stage);
+        }
+    }
+
+    areLayoutBorderLabelsVisible(): boolean {
+        return this.layoutBorderLabelsVisible;
     }
 
     setStatsBuildInfo(hash: string, branch: string): void {
@@ -495,20 +508,25 @@ export class StoryboardRenderer {
     }
 
     private updateLayoutBorders(): void {
-        syncLayoutBorder(this.backgroundBorder, this.backgroundSprite, this.layoutBordersVisible);
-        syncLayoutBorder(this.videoBorder, this.videoSprite, this.layoutBordersVisible);
+        syncLayoutBorder(
+            this.backgroundBorder,
+            this.backgroundSprite,
+            this.layoutBordersVisible,
+            this.layoutBorderLabelsVisible,
+        );
+        syncLayoutBorder(this.videoBorder, this.videoSprite, this.layoutBordersVisible, this.layoutBorderLabelsVisible);
 
         for (const entry of this.renderVisuals) {
-            syncLayoutBorder(entry.border, entry.sprite, this.layoutBordersVisible);
+            syncLayoutBorder(entry.border, entry.sprite, this.layoutBordersVisible, this.layoutBorderLabelsVisible);
         }
     }
 
     private hideLayoutBorders(): void {
-        syncLayoutBorder(this.backgroundBorder, this.backgroundSprite, false);
-        syncLayoutBorder(this.videoBorder, this.videoSprite, false);
+        syncLayoutBorder(this.backgroundBorder, this.backgroundSprite, false, this.layoutBorderLabelsVisible);
+        syncLayoutBorder(this.videoBorder, this.videoSprite, false, this.layoutBorderLabelsVisible);
 
         for (const entry of this.renderVisuals) {
-            syncLayoutBorder(entry.border, entry.sprite, false);
+            syncLayoutBorder(entry.border, entry.sprite, false, this.layoutBorderLabelsVisible);
         }
     }
 

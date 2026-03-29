@@ -14,6 +14,7 @@ import { logger } from "./utils/logger";
 const CONTROLS_IDLE_TIMEOUT = 2_000;
 const KEYBOARD_SEEK_STEP = 1_000;
 const STORAGE_KEY_LAYOUT_BORDERS = "osbplayer:layout-borders";
+const STORAGE_KEY_LAYOUT_BORDER_LABELS = "osbplayer:layout-border-labels";
 const STORAGE_KEY_STATS = "osbplayer:stats";
 export const GIT_HASH = import.meta.env.VITE_GIT_COMMIT;
 export const GIT_BRANCH = import.meta.env.VITE_GIT_CURRENT_BRANCH;
@@ -46,6 +47,7 @@ export class App {
             onTogglePlay: () => this.togglePlayback(),
             onToggleMenu: () => this.handleMenuVisibility(),
             onToggleLayoutBorders: () => this.toggleLayoutBorders(),
+            onToggleLayoutBorderLabels: () => this.toggleLayoutBorderLabels(),
             onToggleStats: () => this.toggleStats(),
             onToggleFullscreen: () => void this.renderer.toggleFullscreen(),
             onStop: () => this.stop(),
@@ -66,6 +68,7 @@ export class App {
         this.ui.hideDialog();
         this.ui.setPlaybackState(false);
         this.ui.setLayoutBordersState(false);
+        this.ui.setLayoutBorderLabelsState(true);
         this.ui.setStatsState(false);
     }
 
@@ -238,6 +241,14 @@ export class App {
         this.handlePointerActivity();
     }
 
+    private toggleLayoutBorderLabels(): void {
+        const nextVisible = !this.renderer.areLayoutBorderLabelsVisible();
+        this.renderer.setLayoutBorderLabelsVisible(nextVisible);
+        this.ui.setLayoutBorderLabelsState(nextVisible);
+        this.setStoredBoolean(STORAGE_KEY_LAYOUT_BORDER_LABELS, nextVisible);
+        this.handlePointerActivity();
+    }
+
     private toggleStats(): void {
         const nextVisible = !this.renderer.areStatsVisible();
         this.renderer.setStatsVisible(nextVisible);
@@ -248,10 +259,13 @@ export class App {
 
     private restoreTogglePreferences(): void {
         const layoutBordersVisible = this.getStoredBoolean(STORAGE_KEY_LAYOUT_BORDERS, false);
+        const layoutBorderLabelsVisible = this.getStoredBoolean(STORAGE_KEY_LAYOUT_BORDER_LABELS, true);
         const statsVisible = this.getStoredBoolean(STORAGE_KEY_STATS, false);
 
         this.renderer.setLayoutBordersVisible(layoutBordersVisible);
         this.ui.setLayoutBordersState(layoutBordersVisible);
+        this.renderer.setLayoutBorderLabelsVisible(layoutBorderLabelsVisible);
+        this.ui.setLayoutBorderLabelsState(layoutBorderLabelsVisible);
         this.renderer.setStatsVisible(statsVisible);
         this.ui.setStatsState(statsVisible);
     }
