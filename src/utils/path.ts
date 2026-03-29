@@ -1,5 +1,5 @@
 const imageExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"];
-const videoExtensions = [".mp4", ".webm", ".ogg", ".mov", ".avi", ".m4v"];
+const videoExtensions = [".mp4", ".webm", ".ogv", ".mov", ".avi", ".m4v"];
 const audioExtensions = [".mp3", ".ogg", ".wav", ".m4a"];
 
 export function normalizePath(path: string): string {
@@ -71,6 +71,8 @@ export function getMimeType(path: string): string {
             return "audio/mp4";
         case ".ogg":
             return isVideoPath(path) ? "video/ogg" : "audio/ogg";
+        case ".ogv":
+            return "video/ogg";
         case ".mp4":
         case ".m4v":
             return "video/mp4";
