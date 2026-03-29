@@ -86,6 +86,13 @@ export class App {
             this.archive = await loadOszArchive(file);
             this.ui.renderDifficulties(this.archive.difficulties);
             this.ui.setLoadingState(false);
+
+            if (this.archive.difficulties.length === 1) {
+                this.ui.setStatus("Only one difficulty found, loading automatically...");
+                await this.loadDifficultyById(this.archive.difficulties[0].id);
+                return;
+            }
+
             this.ui.showDifficultyDialog();
             this.ui.setStatus("Select a difficulty to start playback.");
             logger.info(`Loaded archive ${file.name} with ${this.archive.difficulties.length} difficulties.`);
