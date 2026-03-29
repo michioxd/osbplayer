@@ -308,9 +308,16 @@ function generateParameterRanges(
             continue;
         }
 
+        const parameterEndTime =
+            event.startTime === event.endTime
+                ? Number.isFinite(activeTime[1])
+                    ? activeTime[1]
+                    : event.startTime
+                : event.endTime;
+
         const range = {
             startTime: event.startTime,
-            endTime: event.startTime === event.endTime ? activeTime[1] : event.endTime,
+            endTime: parameterEndTime,
         };
 
         switch (event.startValue) {

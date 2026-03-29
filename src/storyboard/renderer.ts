@@ -13,6 +13,7 @@ import type { ResolvedAssets } from "./assets";
 
 const STORYBOARD_WIDTH = 640;
 const STORYBOARD_HEIGHT = 480;
+const DEFAULT_VIDEO_READY_TIMEOUT_MS = 15_000;
 
 interface RenderVisual {
     visual: PreparedStoryboardVisual;
@@ -606,7 +607,7 @@ function syncVideoTime(videoElement: HTMLVideoElement, desiredVideoTime: number)
     }
 }
 
-function waitForVideoReady(videoElement: HTMLVideoElement): Promise<void> {
+function waitForVideoReady(videoElement: HTMLVideoElement, timeoutMs = DEFAULT_VIDEO_READY_TIMEOUT_MS): Promise<void> {
     if (
         videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
         videoElement.videoWidth > 0 &&
@@ -616,6 +617,10 @@ function waitForVideoReady(videoElement: HTMLVideoElement): Promise<void> {
     }
 
     return new Promise((resolve, reject) => {
+        const timeoutId = window.setTimeout(() => {
+            cleanup();
+            reject(new Error("Timed out waiting for video ready"));
+        }, timeoutMs);
         const handleLoadedMetadata = (): void => {
             if (videoElement.videoWidth <= 0 || videoElement.videoHeight <= 0) {
                 return;
@@ -629,6 +634,7 @@ function waitForVideoReady(videoElement: HTMLVideoElement): Promise<void> {
             reject(new Error("Failed to load storyboard video."));
         };
         const cleanup = (): void => {
+            clearTimeout(timeoutId);
             videoElement.removeEventListener("loadedmetadata", handleLoadedMetadata);
             videoElement.removeEventListener("loadeddata", handleLoadedMetadata);
             videoElement.removeEventListener("canplay", handleLoadedMetadata);
