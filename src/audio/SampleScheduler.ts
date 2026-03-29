@@ -1,5 +1,6 @@
 import { Howl } from "howler";
 import type { PreparedStoryboardData } from "../types/storyboard";
+import { getFileName, normalizePath } from "../utils/path";
 
 export class SampleScheduler {
     private readonly samples: PreparedStoryboardData["samples"];
@@ -12,7 +13,7 @@ export class SampleScheduler {
         this.samples = [...storyboard.samples].sort((left, right) => left.startTime - right.startTime);
 
         for (const sample of this.samples) {
-            const blob = assets.get(sample.path);
+            const blob = resolveSampleBlob(sample.path, assets);
             if (blob && !this.urls.has(sample.path)) {
                 const url = URL.createObjectURL(blob);
                 this.urls.set(sample.path, url);
@@ -104,6 +105,29 @@ export class SampleScheduler {
             sound.stop();
         }
     }
+}
+
+function resolveSampleBlob(path: string, assets: Map<string, Blob>): Blob | undefined {
+    const directMatch = assets.get(path);
+    if (directMatch) {
+        return directMatch;
+    }
+
+    const normalizedPath = normalizePath(path);
+    for (const [key, blob] of assets.entries()) {
+        if (normalizePath(key) === normalizedPath) {
+            return blob;
+        }
+    }
+
+    const fileName = getFileName(path).toLowerCase();
+    for (const [key, blob] of assets.entries()) {
+        if (getFileName(key).toLowerCase() === fileName) {
+            return blob;
+        }
+    }
+
+    return undefined;
 }
 
 function resolveHowlerFormats(path: string, blob: Blob): string[] | undefined {
