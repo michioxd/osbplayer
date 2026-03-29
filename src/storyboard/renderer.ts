@@ -1,14 +1,7 @@
 import { Application, Container, Sprite, Texture, type FederatedPointerEvent } from "pixi.js";
-
-import type {
-    PreparedStoryboardAnimation,
-    PreparedStoryboardData,
-    PreparedStoryboardVisual,
-} from "../types/storyboard";
-import { Layer, Origin } from "../types/storyboard";
+import type { PreparedStoryboardData } from "../types/storyboard";
 import { clamp } from "../utils/dom";
 import { getMimeType, isVideoPath } from "../utils/path";
-import { isTimeInRanges, keyframePairValueAt, keyframeValueAt, packRgb } from "./interpolation";
 import type { ResolvedAssets } from "./assets";
 import {
     colorForVisualLayer,
@@ -17,20 +10,31 @@ import {
     syncLayoutBorder,
     type LayoutBorder,
 } from "./layoutBorders";
+import {
+    anchorFromOrigin,
+    coverScaleForSource,
+    findFirstVisualEndingAtOrAfter,
+    findFirstVisualStartingAfter,
+    fitHeightScale,
+    getTextureHeight,
+    hasIndependentStoryboardBackground,
+    isRedundantBeatmapBackgroundVisual,
+    isVisualDynamic,
+    renderVisualAtTime,
+    resolveMediaPosition,
+    resolveVideoPosition,
+    resolveVisualTextures,
+    shouldUseWidescreenStoryboard,
+    STORYBOARD_HEIGHT,
+    STORYBOARD_WIDTH,
+    syncVideoTime,
+    waitForVideoReady,
+} from "./helpers";
+import type { GameplayState, RenderVisual } from "./helpers";
 import { resolveGpuInfo, StatsOverlay, STATS_PANEL_MARGIN } from "./statsOverlay";
 import type { RendererStats } from "./statsOverlay";
 
-const STORYBOARD_WIDTH = 640;
-const STORYBOARD_HEIGHT = 480;
-const DEFAULT_VIDEO_READY_TIMEOUT_MS = 15_000;
 const FPS_UPDATE_INTERVAL_MS = 300;
-
-interface RenderVisual {
-    visual: PreparedStoryboardVisual;
-    sprite: Sprite;
-    textures: Texture[];
-    border?: LayoutBorder;
-}
 
 export interface RenderSnapshot {
     duration: number;
@@ -49,6 +53,9 @@ export class StoryboardRenderer {
     private readonly contentLayer = new Container();
     private readonly foregroundLayer = new Container();
     private readonly renderVisuals: RenderVisual[] = [];
+    private readonly activeDynamicVisuals: RenderVisual[] = [];
+    private readonly activationStartVisuals: RenderVisual[] = [];
+    private readonly activationEndVisuals: RenderVisual[] = [];
     private readonly canvasHost: HTMLElement;
 
     private animationFrameHandle = 0;
@@ -60,7 +67,7 @@ export class StoryboardRenderer {
     private onTick?: (time: number) => void;
     private onPointerActivity?: () => void;
     private storyboard?: PreparedStoryboardData;
-    private gameplayState: "passing" | "failing" = "passing";
+    private gameplayState: GameplayState = "passing";
     private backgroundSprite?: Sprite;
     private backgroundBorder?: LayoutBorder;
     private videoElement?: HTMLVideoElement;
@@ -71,10 +78,13 @@ export class StoryboardRenderer {
     private currentFps = 0;
     private fpsSampleElapsed = 0;
     private fpsSampleFrames = 0;
+    private visibleElementCount = 0;
     private gpuInfo = "Unknown";
     private initialized = false;
     private layoutBordersVisible = false;
     private statsVisible = false;
+    private activationStartCursor = 0;
+    private activationEndCursor = 0;
 
     constructor(canvasHost: HTMLElement) {
         this.canvasHost = canvasHost;
@@ -100,7 +110,7 @@ export class StoryboardRenderer {
             antialias: true,
             backgroundColor: 0x000000,
             eventMode: "static",
-            preference: "webgl",
+            preference: "webgpu",
         });
 
         this.app.stage.addChild(this.stageRoot);
@@ -109,7 +119,7 @@ export class StoryboardRenderer {
         this.app.canvas.id = "storyboard";
         this.app.canvas.addEventListener("pointermove", this.handlePointerMove);
         this.app.canvas.addEventListener("pointerdown", this.handlePointerMove);
-        this.gpuInfo = resolveGpuInfo(this.app.canvas);
+        this.gpuInfo = await resolveGpuInfo(this.app.canvas);
         this.initialized = true;
         this.resize();
         window.addEventListener("resize", this.resize);
@@ -199,15 +209,29 @@ export class StoryboardRenderer {
                 visual.filePath,
             );
 
-            this.renderVisuals.push({ visual, sprite, textures, border });
+            this.renderVisuals.push({
+                visual,
+                sprite,
+                textures,
+                border,
+                isDynamic: isVisualDynamic(visual, textures),
+                active: false,
+                dynamicListIndex: -1,
+            });
         });
+
+        this.rebuildActivationIndex();
         this.resize();
-        this.renderFrame(0);
+        this.renderFrame(0, true);
     }
 
     setLayoutBordersVisible(visible: boolean): void {
         this.layoutBordersVisible = visible;
-        this.updateLayoutBorders();
+        if (visible) {
+            this.updateLayoutBorders();
+        } else {
+            this.hideLayoutBorders();
+        }
         this.app.renderer.render(this.app.stage);
     }
 
@@ -266,7 +290,7 @@ export class StoryboardRenderer {
             const videoTime = Math.max(0, (this.currentTime - this.storyboard.video.startTime) / 1000);
             syncVideoTime(this.videoElement, videoTime);
         }
-        this.renderFrame(this.currentTime);
+        this.renderFrame(this.currentTime, true);
     }
 
     getTime(): number {
@@ -347,7 +371,9 @@ export class StoryboardRenderer {
             this.videoSprite.scale.set(videoScale);
         }
 
-        this.updateLayoutBorders();
+        if (this.layoutBordersVisible) {
+            this.updateLayoutBorders();
+        }
         this.updateStatsOverlay();
 
         this.app.renderer.resize(width, height);
@@ -372,8 +398,9 @@ export class StoryboardRenderer {
                 this.fpsSampleElapsed = 0;
                 this.fpsSampleFrames = 0;
             }
+            const previousTime = this.currentTime;
             this.currentTime = Math.min(this.duration, this.currentTime + delta);
-            this.renderFrame(this.currentTime);
+            this.renderFrame(this.currentTime, false, previousTime);
 
             if (this.currentTime >= this.duration) {
                 this.pause();
@@ -385,7 +412,7 @@ export class StoryboardRenderer {
         });
     }
 
-    private renderFrame(time: number): void {
+    private renderFrame(time: number, forceFullUpdate = false, previousTime = time): void {
         this.currentTime = time;
         let isVideoVisible = false;
 
@@ -413,11 +440,15 @@ export class StoryboardRenderer {
             this.backgroundSprite.visible = !isVideoVisible;
         }
 
-        for (const entry of this.renderVisuals) {
-            renderVisualAtTime(entry, time, this.gameplayState);
+        if (forceFullUpdate || time < previousTime) {
+            this.rebuildActiveVisualState(time);
+        } else {
+            this.advanceActiveVisualState(time);
         }
 
-        this.updateLayoutBorders();
+        if (this.layoutBordersVisible) {
+            this.updateLayoutBorders();
+        }
         this.updateStatsOverlay();
 
         this.onTick?.(time);
@@ -425,7 +456,18 @@ export class StoryboardRenderer {
     }
 
     private clearScene(): void {
+        for (const entry of this.renderVisuals) {
+            destroyLayoutBorder(entry.border);
+            entry.sprite.destroy();
+        }
+
         this.renderVisuals.splice(0, this.renderVisuals.length);
+        this.activeDynamicVisuals.splice(0, this.activeDynamicVisuals.length);
+        this.activationStartVisuals.splice(0, this.activationStartVisuals.length);
+        this.activationEndVisuals.splice(0, this.activationEndVisuals.length);
+        this.activationStartCursor = 0;
+        this.activationEndCursor = 0;
+        this.visibleElementCount = 0;
         this.videoLayer.removeChildren();
         this.backgroundLayer.removeChildren();
         this.contentLayer.removeChildren();
@@ -459,7 +501,20 @@ export class StoryboardRenderer {
         }
     }
 
+    private hideLayoutBorders(): void {
+        syncLayoutBorder(this.backgroundBorder, this.backgroundSprite, false);
+        syncLayoutBorder(this.videoBorder, this.videoSprite, false);
+
+        for (const entry of this.renderVisuals) {
+            syncLayoutBorder(entry.border, entry.sprite, false);
+        }
+    }
+
     private updateStatsOverlay(): void {
+        if (!this.statsVisible) {
+            return;
+        }
+
         const stats = this.collectStats();
         this.statsOverlay.update(stats);
     }
@@ -469,7 +524,7 @@ export class StoryboardRenderer {
     }
 
     private collectStats(): RendererStats {
-        const visibleElements = this.renderVisuals.reduce((count, entry) => count + Number(entry.sprite.visible), 0);
+        const visibleElements = this.visibleElementCount;
         const visibleSprites =
             visibleElements +
             Number(Boolean(this.backgroundSprite?.visible)) +
@@ -487,292 +542,105 @@ export class StoryboardRenderer {
             renderHeight: this.size.height,
         };
     }
-}
 
-function resolveVisualTextures(visual: PreparedStoryboardVisual, assets: ResolvedAssets): Texture[] {
-    if (visual.kind === "animation") {
-        return visual.framePaths
-            .map((path) => assets.textures.get(cleanPath(path)) || assets.textures.get(path))
-            .filter((texture): texture is Texture => Boolean(texture));
+    private rebuildActivationIndex(): void {
+        this.activationStartVisuals.splice(0, this.activationStartVisuals.length, ...this.renderVisuals);
+        this.activationEndVisuals.splice(0, this.activationEndVisuals.length, ...this.renderVisuals);
+        this.activationStartVisuals.sort((left, right) => left.visual.activeTime[0] - right.visual.activeTime[0]);
+        this.activationEndVisuals.sort((left, right) => left.visual.activeTime[1] - right.visual.activeTime[1]);
+        this.activationStartCursor = 0;
+        this.activationEndCursor = 0;
     }
 
-    const cleanedPath = cleanPath(visual.filePath);
-    const texture = assets.textures.get(cleanedPath) || assets.textures.get(visual.filePath);
-    return texture ? [texture] : [];
-}
+    private rebuildActiveVisualState(time: number): void {
+        this.visibleElementCount = 0;
+        this.activeDynamicVisuals.length = 0;
 
-function renderVisualAtTime(entry: RenderVisual, time: number, gameplayState: "passing" | "failing"): void {
-    const { sprite, visual, textures } = entry;
+        for (const entry of this.renderVisuals) {
+            entry.active = false;
+            entry.dynamicListIndex = -1;
+            entry.sprite.visible = false;
 
-    if (!shouldRenderForGameplayState(visual, gameplayState)) {
-        sprite.visible = false;
-        return;
-    }
-
-    if (time < visual.activeTime[0] || time > visual.activeTime[1]) {
-        sprite.visible = false;
-        return;
-    }
-
-    const alpha = keyframeValueAt(visual.opacityKeyframes, time, 1);
-    const uniformScale = keyframeValueAt(visual.uniformScaleKeyframes, time, 1);
-    const [vectorScaleX, vectorScaleY] = keyframePairValueAt(visual.vectorScaleKeyframes, time, [1, 1]);
-
-    const scaleX = uniformScale * vectorScaleX;
-    const scaleY = uniformScale * vectorScaleY;
-
-    if (alpha <= 0 || scaleX === 0 || scaleY === 0) {
-        sprite.visible = false;
-        return;
-    }
-
-    const [x, y] = keyframePairValueAt(visual.positionKeyframes, time, [visual.x, visual.y]);
-    const rotation = keyframeValueAt(visual.rotationKeyframes, time, 0);
-    const colour = keyframeValueAt(visual.colourKeyframes, time, [255, 255, 255]);
-    const flipH = isTimeInRanges(visual.flipHRange, time);
-    const flipV = isTimeInRanges(visual.flipVRange, time);
-    const additive = isTimeInRanges(visual.additiveRange, time);
-    const adjustedAnchor = adjustAnchorForTransforms(visual.origin, [vectorScaleX, vectorScaleY], flipH, flipV);
-
-    sprite.visible = true;
-    sprite.anchor.set(adjustedAnchor[0], adjustedAnchor[1]);
-    sprite.position.set(x, y);
-    sprite.scale.set(scaleX * (flipH ? -1 : 1), scaleY * (flipV ? -1 : 1));
-    sprite.rotation = rotation;
-    sprite.alpha = clamp(alpha, 0, 1);
-    sprite.tint = packRgb(colour);
-    sprite.blendMode = additive ? "add" : "normal";
-
-    if (visual.kind === "animation") {
-        const texture = resolveAnimationFrame(visual, textures, time);
-        if (texture) {
-            sprite.texture = texture;
-        }
-    }
-}
-
-function resolveAnimationFrame(
-    visual: PreparedStoryboardAnimation,
-    textures: Texture[],
-    time: number,
-): Texture | undefined {
-    if (textures.length === 0) {
-        return undefined;
-    }
-
-    const frameDelay = Math.max(1, visual.frameDelay);
-    const elapsed = Math.max(0, time - visual.activeTime[0]);
-    const rawIndex = Math.floor(elapsed / frameDelay);
-
-    if (visual.loopType === "LoopOnce") {
-        return textures[Math.min(textures.length - 1, rawIndex)];
-    }
-
-    return textures[rawIndex % textures.length];
-}
-
-function anchorFromOrigin(origin: Origin): [number, number] {
-    switch (origin) {
-        case Origin.TopLeft:
-            return [0, 0];
-        case Origin.TopCentre:
-            return [0.5, 0];
-        case Origin.TopRight:
-            return [1, 0];
-        case Origin.CentreLeft:
-            return [0, 0.5];
-        case Origin.Centre:
-            return [0.5, 0.5];
-        case Origin.CentreRight:
-            return [1, 0.5];
-        case Origin.BottomLeft:
-            return [0, 1];
-        case Origin.BottomCentre:
-            return [0.5, 1];
-        case Origin.BottomRight:
-            return [1, 1];
-        default:
-            return [0.5, 0.5];
-    }
-}
-
-function adjustAnchorForTransforms(
-    origin: Origin,
-    vectorScale: [number, number],
-    flipH: boolean,
-    flipV: boolean,
-): [number, number] {
-    const anchor = [...anchorFromOrigin(origin)] as [number, number];
-    const hasNegativeScaleX = vectorScale[0] < 0;
-    const hasNegativeScaleY = vectorScale[1] < 0;
-
-    if (flipH !== hasNegativeScaleX) {
-        anchor[0] = 1 - anchor[0];
-    }
-
-    if (flipV !== hasNegativeScaleY) {
-        anchor[1] = 1 - anchor[1];
-    }
-
-    return anchor;
-}
-
-function shouldUseWidescreenStoryboard(storyboard: PreparedStoryboardData): boolean {
-    return storyboard.widescreenStoryboard || (storyboard.visuals.length === 0 && Boolean(storyboard.video));
-}
-
-function shouldRenderForGameplayState(visual: PreparedStoryboardVisual, gameplayState: "passing" | "failing"): boolean {
-    if (visual.layer === Layer.Pass) {
-        return gameplayState === "passing";
-    }
-
-    if (visual.layer === Layer.Fail) {
-        return gameplayState === "failing";
-    }
-
-    return true;
-}
-
-function resolveMediaPosition(
-    media:
-        | Pick<PreparedStoryboardData, "background" | "video">["background"]
-        | Pick<PreparedStoryboardData, "background" | "video">["video"],
-    frameWidth: number,
-): [number, number] {
-    if (!media) {
-        return [frameWidth / 2, STORYBOARD_HEIGHT / 2];
-    }
-
-    if (media.x === 0 && media.y === 0) {
-        return [frameWidth / 2, STORYBOARD_HEIGHT / 2];
-    }
-
-    return [media.x, media.y];
-}
-
-function resolveVideoPosition(
-    media: Pick<PreparedStoryboardData, "video">["video"],
-    frameWidth: number,
-): [number, number] {
-    if (!media || (media.x === 0 && media.y === 0)) {
-        return [frameWidth / 2, STORYBOARD_HEIGHT / 2];
-    }
-
-    return [media.x + (frameWidth - STORYBOARD_WIDTH) / 2, media.y];
-}
-
-function fitHeightScale(sourceHeight: number, targetHeight: number): number {
-    if (sourceHeight <= 0) {
-        return 1;
-    }
-
-    return targetHeight / sourceHeight;
-}
-
-function coverScaleForSource(
-    sourceWidth: number,
-    sourceHeight: number,
-    targetWidth: number,
-    targetHeight: number,
-): number {
-    if (sourceWidth <= 0 || sourceHeight <= 0) {
-        return 1;
-    }
-
-    return Math.max(targetWidth / sourceWidth, targetHeight / sourceHeight);
-}
-
-function getTextureHeight(texture: Texture): number {
-    if (texture.height > 1) return texture.height;
-    if (texture.source && texture.source.height > 1) return texture.source.height;
-    if (texture.orig && texture.orig.height > 1) return texture.orig.height;
-    return 1080;
-}
-
-function cleanPath(p: string): string {
-    return p.replace(/^"|"$/g, "").trim().toLowerCase().replace(/\\/g, "/");
-}
-
-function hasIndependentStoryboardBackground(storyboard: PreparedStoryboardData): boolean {
-    return storyboard.visuals.some((visual) => {
-        if (visual.layer !== Layer.Background) {
-            return false;
-        }
-
-        return !isRedundantBeatmapBackgroundVisual(visual, storyboard);
-    });
-}
-
-function isRedundantBeatmapBackgroundVisual(
-    visual: PreparedStoryboardVisual,
-    storyboard: PreparedStoryboardData,
-): boolean {
-    if (!storyboard.background || visual.layer !== Layer.Background) {
-        return false;
-    }
-
-    if (cleanPath(visual.filePath) !== cleanPath(storyboard.background.path)) {
-        return false;
-    }
-
-    return visual.expandedEvents.length === 0 && visual.loops.length === 0 && visual.triggers.length === 0;
-}
-
-function syncVideoTime(videoElement: HTMLVideoElement, desiredVideoTime: number): void {
-    if (
-        videoElement.readyState < HTMLMediaElement.HAVE_METADATA ||
-        videoElement.videoWidth <= 0 ||
-        videoElement.videoHeight <= 0
-    ) {
-        return;
-    }
-
-    const clampedTime = Number.isFinite(videoElement.duration)
-        ? Math.min(Math.max(0, desiredVideoTime), Math.max(0, videoElement.duration - 0.001))
-        : Math.max(0, desiredVideoTime);
-
-    if (Math.abs(videoElement.currentTime - clampedTime) > 0.05) {
-        videoElement.currentTime = clampedTime;
-    }
-}
-
-function waitForVideoReady(videoElement: HTMLVideoElement, timeoutMs = DEFAULT_VIDEO_READY_TIMEOUT_MS): Promise<void> {
-    if (
-        videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-        videoElement.videoWidth > 0 &&
-        videoElement.videoHeight > 0
-    ) {
-        return Promise.resolve();
-    }
-
-    return new Promise((resolve, reject) => {
-        const timeoutId = window.setTimeout(() => {
-            cleanup();
-            reject(new Error("Timed out waiting for video ready"));
-        }, timeoutMs);
-        const handleLoadedMetadata = (): void => {
-            if (videoElement.videoWidth <= 0 || videoElement.videoHeight <= 0) {
-                return;
+            if (time < entry.visual.activeTime[0] || time > entry.visual.activeTime[1]) {
+                continue;
             }
 
-            cleanup();
-            resolve();
-        };
-        const handleError = (): void => {
-            cleanup();
-            reject(new Error("Failed to load storyboard video."));
-        };
-        const cleanup = (): void => {
-            clearTimeout(timeoutId);
-            videoElement.removeEventListener("loadedmetadata", handleLoadedMetadata);
-            videoElement.removeEventListener("loadeddata", handleLoadedMetadata);
-            videoElement.removeEventListener("canplay", handleLoadedMetadata);
-            videoElement.removeEventListener("error", handleError);
-        };
+            this.activateVisual(entry);
+            this.applyVisualStateAtTime(entry, time);
+        }
 
-        videoElement.addEventListener("loadedmetadata", handleLoadedMetadata, { once: true });
-        videoElement.addEventListener("loadeddata", handleLoadedMetadata, { once: true });
-        videoElement.addEventListener("canplay", handleLoadedMetadata, { once: true });
-        videoElement.addEventListener("error", handleError, { once: true });
-    });
+        this.activationStartCursor = findFirstVisualStartingAfter(this.activationStartVisuals, time);
+        this.activationEndCursor = findFirstVisualEndingAtOrAfter(this.activationEndVisuals, time);
+    }
+
+    private advanceActiveVisualState(time: number): void {
+        while (
+            this.activationStartCursor < this.activationStartVisuals.length &&
+            this.activationStartVisuals[this.activationStartCursor].visual.activeTime[0] <= time
+        ) {
+            const entry = this.activationStartVisuals[this.activationStartCursor];
+            this.activationStartCursor += 1;
+
+            if (entry.visual.activeTime[1] < time || entry.active) {
+                continue;
+            }
+
+            this.activateVisual(entry);
+            if (!entry.isDynamic) {
+                this.applyVisualStateAtTime(entry, time);
+            }
+        }
+
+        while (
+            this.activationEndCursor < this.activationEndVisuals.length &&
+            this.activationEndVisuals[this.activationEndCursor].visual.activeTime[1] < time
+        ) {
+            this.deactivateVisual(this.activationEndVisuals[this.activationEndCursor]);
+            this.activationEndCursor += 1;
+        }
+
+        for (const entry of this.activeDynamicVisuals) {
+            this.applyVisualStateAtTime(entry, time);
+        }
+    }
+
+    private activateVisual(entry: RenderVisual): void {
+        entry.active = true;
+        if (!entry.isDynamic) {
+            return;
+        }
+
+        entry.dynamicListIndex = this.activeDynamicVisuals.length;
+        this.activeDynamicVisuals.push(entry);
+    }
+
+    private deactivateVisual(entry: RenderVisual): void {
+        if (!entry.active) {
+            return;
+        }
+
+        if (entry.sprite.visible) {
+            this.visibleElementCount -= 1;
+        }
+
+        entry.sprite.visible = false;
+        entry.active = false;
+
+        if (entry.dynamicListIndex >= 0) {
+            const removedIndex = entry.dynamicListIndex;
+            const lastEntry = this.activeDynamicVisuals.pop();
+            entry.dynamicListIndex = -1;
+
+            if (lastEntry && lastEntry !== entry) {
+                this.activeDynamicVisuals[removedIndex] = lastEntry;
+                lastEntry.dynamicListIndex = removedIndex;
+            }
+        }
+    }
+
+    private applyVisualStateAtTime(entry: RenderVisual, time: number): void {
+        const wasVisible = entry.sprite.visible;
+        renderVisualAtTime(entry, time, this.gameplayState);
+        this.visibleElementCount += Number(entry.sprite.visible) - Number(wasVisible);
+    }
 }

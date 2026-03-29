@@ -105,7 +105,12 @@ function formatResolution(width: number, height: number): string {
     return `${safeWidth}x${safeHeight}`;
 }
 
-export function resolveGpuInfo(canvas: HTMLCanvasElement): string {
+export async function resolveGpuInfo(canvas: HTMLCanvasElement): Promise<string> {
+    const webGpuContext = canvas.getContext("webgpu");
+    if (webGpuContext) {
+        return resolveWebGpuInfo();
+    }
+
     const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
     if (!gl) {
         return "Unavailable";
@@ -121,4 +126,48 @@ export function resolveGpuInfo(canvas: HTMLCanvasElement): string {
 
     const renderer = gl.getParameter(gl.RENDERER);
     return typeof renderer === "string" && renderer.length > 0 ? renderer : "Unavailable";
+}
+
+async function resolveWebGpuInfo(): Promise<string> {
+    const webGpuNavigator = navigator as Navigator & { gpu?: GPU };
+    if (!webGpuNavigator.gpu?.requestAdapter) {
+        return "WebGPU";
+    }
+
+    try {
+        const adapter = await webGpuNavigator.gpu.requestAdapter();
+        if (!adapter) {
+            return "WebGPU";
+        }
+
+        const adapterInfo = await getAdapterInfo(adapter);
+        if (!adapterInfo) {
+            return "WebGPU";
+        }
+
+        const parts = [adapterInfo.vendor, adapterInfo.architecture, adapterInfo.device, adapterInfo.description]
+            .filter((part): part is string => typeof part === "string" && part.length > 0)
+            .filter((part, index, items) => items.indexOf(part) === index);
+
+        return parts.length > 0 ? parts.join(" / ") : "WebGPU";
+    } catch {
+        return "WebGPU";
+    }
+}
+
+async function getAdapterInfo(adapter: GPUAdapter): Promise<GPUAdapterInfo | undefined> {
+    const adapterWithInfo = adapter as GPUAdapter & {
+        info?: GPUAdapterInfo;
+        requestAdapterInfo?: () => Promise<GPUAdapterInfo>;
+    };
+
+    if (adapterWithInfo.info) {
+        return adapterWithInfo.info;
+    }
+
+    if (adapterWithInfo.requestAdapterInfo) {
+        return adapterWithInfo.requestAdapterInfo();
+    }
+
+    return undefined;
 }
