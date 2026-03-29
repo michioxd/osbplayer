@@ -35,7 +35,19 @@ class Logger {
                     return part.message;
                 }
 
-                return typeof part === "string" ? part : JSON.stringify(part);
+                if (typeof part === "string") {
+                    return part;
+                }
+
+                try {
+                    return JSON.stringify(part);
+                } catch (error) {
+                    if (error instanceof TypeError) {
+                        return "[Circular]";
+                    }
+
+                    return String(part);
+                }
             })
             .join(" ");
 
