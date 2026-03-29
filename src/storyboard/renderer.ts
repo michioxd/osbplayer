@@ -112,17 +112,13 @@ export class StoryboardRenderer {
         this.currentTime = 0;
         this.frameWidth = shouldUseWidescreenStoryboard(storyboard) ? (STORYBOARD_HEIGHT * 16) / 9 : STORYBOARD_WIDTH;
         this.playfieldRoot.position.set((this.frameWidth - STORYBOARD_WIDTH) / 2, 0);
+        const suppressBeatmapBackgroundVisuals = hasIndependentStoryboardBackground(storyboard);
 
-        if (storyboard.background && !storyboardReplacesBackground(storyboard)) {
+        if (storyboard.background && !suppressBeatmapBackgroundVisuals) {
             const texture = assets.textures.get(storyboard.background.path);
             if (texture) {
                 this.backgroundSprite = new Sprite(texture);
                 this.backgroundSprite.anchor.set(0.5);
-
-                if (storyboard.visuals.length > 0) {
-                    this.backgroundSprite.visible = false;
-                }
-
                 this.backgroundLayer.addChild(this.backgroundSprite);
             }
         }
@@ -156,6 +152,10 @@ export class StoryboardRenderer {
         }
 
         storyboard.visuals.forEach((visual, index) => {
+            if (suppressBeatmapBackgroundVisuals && isRedundantBeatmapBackgroundVisual(visual, storyboard)) {
+                return;
+            }
+
             const textures = resolveVisualTextures(visual, assets);
             if (textures.length === 0) return;
 
@@ -563,14 +563,29 @@ function cleanPath(p: string): string {
     return p.replace(/^"|"$/g, "").trim().toLowerCase().replace(/\\/g, "/");
 }
 
-function storyboardReplacesBackground(storyboard: PreparedStoryboardData): boolean {
-    const backgroundPath = storyboard.background?.path;
-    if (!backgroundPath) return false;
-
-    const normalizedBackgroundPath = cleanPath(backgroundPath);
+function hasIndependentStoryboardBackground(storyboard: PreparedStoryboardData): boolean {
     return storyboard.visuals.some((visual) => {
-        return visual.layer === Layer.Background && cleanPath(visual.filePath) === normalizedBackgroundPath;
+        if (visual.layer !== Layer.Background) {
+            return false;
+        }
+
+        return !isRedundantBeatmapBackgroundVisual(visual, storyboard);
     });
+}
+
+function isRedundantBeatmapBackgroundVisual(
+    visual: PreparedStoryboardVisual,
+    storyboard: PreparedStoryboardData,
+): boolean {
+    if (!storyboard.background || visual.layer !== Layer.Background) {
+        return false;
+    }
+
+    if (cleanPath(visual.filePath) !== cleanPath(storyboard.background.path)) {
+        return false;
+    }
+
+    return visual.expandedEvents.length === 0 && visual.loops.length === 0 && visual.triggers.length === 0;
 }
 
 function syncVideoTime(videoElement: HTMLVideoElement, desiredVideoTime: number): void {
