@@ -1,0 +1,1 @@
+import{o as t,x as o}from"./Geometry-B-t628oc.js";var e={};function r(r,n,s){let u=2166136261;for(let t=0;t<n;t++)u^=r[t].uid,u=Math.imul(u,16777619),u>>>=0;return e[u]||function(r,n,s,u){const c={};let l=0;for(let t=0;t<u;t++){const e=t<n?r[t]:o.EMPTY.source;c[l++]=e.source,c[l++]=e.style}const a=new t(c);return e[s]=a,a}(r,n,u,s)}export{r as t};
