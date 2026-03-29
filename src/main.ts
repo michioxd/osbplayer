@@ -228,6 +228,7 @@ export class App {
         }
         this.sampleScheduler?.reset(time);
         this.ui.setDuration(time, this.getDuration());
+        this.handlePointerActivity();
     }
 
     private handlePointerActivity(): void {
