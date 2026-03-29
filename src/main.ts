@@ -12,6 +12,7 @@ import { qs } from "./utils/dom";
 import { logger } from "./utils/logger";
 
 const CONTROLS_IDLE_TIMEOUT = 2_000;
+const KEYBOARD_SEEK_STEP = 5_000;
 
 export class App {
     private readonly fileInput = document.createElement("input");
@@ -51,6 +52,7 @@ export class App {
         this.renderer.setPointerActivityListener(() => this.handlePointerActivity());
         this.renderer.setTickListener((time) => this.handleRenderTick(time));
         this.audio.onEnded(() => this.stop());
+        window.addEventListener("keydown", this.handleKeydown);
 
         this.ui.setStatus("Initializing assets, please wait...");
         this.ui.setControlsVisible(true);
@@ -76,6 +78,7 @@ export class App {
         if (this.controlsTimer) {
             window.clearTimeout(this.controlsTimer);
         }
+        window.removeEventListener("keydown", this.handleKeydown);
     }
 
     private async handleOszSelected(file: File): Promise<void> {
@@ -260,6 +263,59 @@ export class App {
 
         return rendererTime;
     }
+
+    private readonly handleKeydown = (event: KeyboardEvent): void => {
+        if (shouldIgnoreKeyboardShortcut(event)) {
+            return;
+        }
+
+        if (event.code === "Space") {
+            event.preventDefault();
+            this.togglePlayback();
+            this.handlePointerActivity();
+            return;
+        }
+
+        if (event.code === "ArrowLeft") {
+            event.preventDefault();
+            this.seekToTime(this.getPlaybackTime() - KEYBOARD_SEEK_STEP);
+            return;
+        }
+
+        if (event.code === "ArrowRight") {
+            event.preventDefault();
+            this.seekToTime(this.getPlaybackTime() + KEYBOARD_SEEK_STEP);
+            return;
+        }
+    };
+
+    private seekToTime(time: number): void {
+        const clampedTime = Math.min(Math.max(0, time), this.getDuration());
+        this.renderer.seek(clampedTime);
+        if (this.audio.getDuration() > 0) {
+            this.audio.seek(clampedTime);
+        }
+        this.sampleScheduler?.reset(clampedTime);
+        this.ui.setDuration(clampedTime, this.getDuration());
+        this.handlePointerActivity();
+    }
+}
+
+function shouldIgnoreKeyboardShortcut(event: KeyboardEvent): boolean {
+    if (event.repeat || event.ctrlKey || event.altKey || event.metaKey) {
+        return true;
+    }
+
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+        return false;
+    }
+
+    if (target.isContentEditable) {
+        return true;
+    }
+
+    return ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName);
 }
 
 const app = new App();
