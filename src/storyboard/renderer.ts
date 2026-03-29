@@ -152,7 +152,7 @@ export class StoryboardRenderer {
         }
 
         storyboard.visuals.forEach((visual, index) => {
-            if (suppressBeatmapBackgroundVisuals && isRedundantBeatmapBackgroundVisual(visual, storyboard)) {
+            if (isRedundantBeatmapBackgroundVisual(visual, storyboard)) {
                 return;
             }
 
@@ -309,10 +309,12 @@ export class StoryboardRenderer {
 
     private renderFrame(time: number): void {
         this.currentTime = time;
+        let isVideoVisible = false;
 
         if (this.storyboard?.video && this.videoElement && this.videoSprite) {
             const visible =
                 time >= this.storyboard.video.startTime && (this.videoEndTime <= 0 || time <= this.videoEndTime);
+            isVideoVisible = visible;
             this.videoSprite.visible = visible;
             if (visible) {
                 const desiredVideoTime = Math.max(0, (time - this.storyboard.video.startTime) / 1000);
@@ -327,6 +329,10 @@ export class StoryboardRenderer {
             } else {
                 this.videoElement.pause();
             }
+        }
+
+        if (this.backgroundSprite) {
+            this.backgroundSprite.visible = !isVideoVisible;
         }
 
         for (const entry of this.renderVisuals) {

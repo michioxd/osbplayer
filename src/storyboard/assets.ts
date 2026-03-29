@@ -1,7 +1,14 @@
 import { Assets, Texture } from "pixi.js";
 
 import type { AssetLoadProgress, PreparedStoryboardData } from "../types/storyboard";
-import { getFileName, getImageExtensions, getMimeType, hasKnownImageExtension, normalizePath } from "../utils/path";
+import {
+    getFileName,
+    getImageExtensions,
+    getMimeType,
+    hasKnownImageExtension,
+    isVideoPath,
+    normalizePath,
+} from "../utils/path";
 import { logger } from "../utils/logger";
 
 export interface ResolvedAssets {
@@ -158,7 +165,7 @@ function resolveAssetBlob(requestedPath: string, assets: Map<string, Blob>): { k
         }
     }
 
-    if (!hasKnownImageExtension(requestedPath)) {
+    if (!hasKnownImageExtension(requestedPath) && !isVideoPath(requestedPath)) {
         for (const extension of getImageExtensions()) {
             const withExtension = `${requestedPath}${extension}`;
             const resolved = resolveAssetBlob(withExtension, assets);
