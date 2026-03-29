@@ -13,6 +13,8 @@ import { logger } from "./utils/logger";
 
 const CONTROLS_IDLE_TIMEOUT = 2_000;
 const KEYBOARD_SEEK_STEP = 1_000;
+const STORAGE_KEY_LAYOUT_BORDERS = "osbplayer:layout-borders";
+const STORAGE_KEY_STATS = "osbplayer:stats";
 export const GIT_HASH = import.meta.env.VITE_GIT_COMMIT;
 export const GIT_BRANCH = import.meta.env.VITE_GIT_CURRENT_BRANCH;
 
@@ -69,6 +71,7 @@ export class App {
 
     async init(): Promise<void> {
         await this.renderer.init();
+        this.restoreTogglePreferences();
         this.ui.setStatus("Idle, please load an osu! beatmap contain a storyboard.");
         this.ui.hideDialog();
         this.handlePointerActivity();
@@ -231,6 +234,7 @@ export class App {
         const nextVisible = !this.renderer.areLayoutBordersVisible();
         this.renderer.setLayoutBordersVisible(nextVisible);
         this.ui.setLayoutBordersState(nextVisible);
+        this.setStoredBoolean(STORAGE_KEY_LAYOUT_BORDERS, nextVisible);
         this.handlePointerActivity();
     }
 
@@ -238,7 +242,39 @@ export class App {
         const nextVisible = !this.renderer.areStatsVisible();
         this.renderer.setStatsVisible(nextVisible);
         this.ui.setStatsState(nextVisible);
+        this.setStoredBoolean(STORAGE_KEY_STATS, nextVisible);
         this.handlePointerActivity();
+    }
+
+    private restoreTogglePreferences(): void {
+        const layoutBordersVisible = this.getStoredBoolean(STORAGE_KEY_LAYOUT_BORDERS, false);
+        const statsVisible = this.getStoredBoolean(STORAGE_KEY_STATS, false);
+
+        this.renderer.setLayoutBordersVisible(layoutBordersVisible);
+        this.ui.setLayoutBordersState(layoutBordersVisible);
+        this.renderer.setStatsVisible(statsVisible);
+        this.ui.setStatsState(statsVisible);
+    }
+
+    private getStoredBoolean(key: string, fallback: boolean): boolean {
+        try {
+            const value = window.localStorage.getItem(key);
+            if (value === null) {
+                return fallback;
+            }
+
+            return value === "true";
+        } catch {
+            return fallback;
+        }
+    }
+
+    private setStoredBoolean(key: string, value: boolean): void {
+        try {
+            window.localStorage.setItem(key, String(value));
+        } catch {
+            logger.warn(`Unable to persist preference: ${key}`);
+        }
     }
 
     private seek(ratio: number): void {
