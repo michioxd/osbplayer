@@ -163,6 +163,13 @@ export class App {
 
             this.currentStoryboard = storyboard;
             this.resolvedAssets = assets;
+            this.ui.updateLoading({
+                loaded: 1,
+                total: 3,
+                percent: 34,
+                currentFile: "Preparing audio...",
+            });
+            this.ui.setStatus("Preparing audio...");
             this.sampleScheduler = new SampleScheduler(storyboard, assets.blobs);
             this.sampleScheduler.reset(0);
 
@@ -171,7 +178,20 @@ export class App {
                 await this.audio.load(audioBlob, storyboard.audioFilename);
             }
 
+            this.ui.updateLoading({
+                loaded: 2,
+                total: 3,
+                percent: 67,
+                currentFile: "Preparing renderer...",
+            });
+            this.ui.setStatus("Preparing renderer...");
             await this.renderer.load(storyboard, assets);
+            this.ui.updateLoading({
+                loaded: 3,
+                total: 3,
+                percent: 100,
+                currentFile: "Finishing...",
+            });
             this.renderer.setDuration(this.getDuration());
             this.ui.setLoadingState(false);
             this.ui.hideDialog();

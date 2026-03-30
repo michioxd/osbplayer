@@ -19,16 +19,20 @@ export interface ResolvedAssets {
 }
 
 export interface BlobAssetSource {
-    get(path: string): Blob | undefined;
-    values(): IterableIterator<[string, Blob]>;
+    keys(): IterableIterator<string>;
+    loadMany(
+        paths: string[],
+        onProgress?: (progress: { loaded: number; total: number; currentFile: string }) => void,
+    ): Promise<Map<string, Blob>>;
 }
 
 export async function loadStoryboardAssets(
     storyboard: PreparedStoryboardData,
-    sourceAssets: Map<string, Blob>,
+    sourceAssets: BlobAssetSource,
     onProgress?: (progress: AssetLoadProgress) => void,
 ): Promise<ResolvedAssets> {
     const requiredAssetPaths = collectRequiredAssetPaths(storyboard);
+    const availableAssetKeys = [...sourceAssets.keys()];
     const resolvedAssets: ResolvedAssets = {
         textures: new Map(),
         blobs: new Map(),
@@ -36,14 +40,45 @@ export async function loadStoryboardAssets(
         managedTextureKeys: new Set(),
     };
 
-    let loaded = 0;
-    const total = requiredAssetPaths.length;
+    const resolvedAssetKeys = new Map<string, string>();
+    const uniqueResolvedAssetKeys = new Set<string>();
 
     for (const path of requiredAssetPaths) {
-        const resolved = resolveAssetBlob(path, sourceAssets);
+        const resolvedKey = resolveAssetKey(path, availableAssetKeys);
+        if (resolvedKey) {
+            resolvedAssetKeys.set(path, resolvedKey);
+            uniqueResolvedAssetKeys.add(resolvedKey);
+        }
+    }
+
+    const extractionTotal = uniqueResolvedAssetKeys.size;
+    const processingTotal = requiredAssetPaths.length;
+    const total = Math.max(1, extractionTotal + processingTotal);
+
+    onProgress?.({
+        loaded: 0,
+        total,
+        percent: 0,
+        currentFile: extractionTotal > 0 ? "Preparing archive assets..." : "Preparing storyboard assets...",
+    });
+
+    const extractedAssets = await sourceAssets.loadMany([...uniqueResolvedAssetKeys], (progress) => {
+        onProgress?.({
+            loaded: progress.loaded,
+            total,
+            percent: Math.round((progress.loaded / total) * 100),
+            currentFile: `Extracting: ${progress.currentFile}`,
+        });
+    });
+
+    let loaded = extractionTotal;
+
+    for (const path of requiredAssetPaths) {
+        const resolvedKey = resolvedAssetKeys.get(path);
+        const resolvedBlob = resolvedKey ? extractedAssets.get(resolvedKey) : undefined;
         loaded += 1;
 
-        if (!resolved) {
+        if (!resolvedBlob) {
             onProgress?.({
                 loaded,
                 total,
@@ -53,11 +88,11 @@ export async function loadStoryboardAssets(
             continue;
         }
 
-        resolvedAssets.blobs.set(path, resolved.blob);
+        resolvedAssets.blobs.set(path, resolvedBlob);
 
         if (isImageAsset(path)) {
             try {
-                const loadedTexture = await loadTexture(path, resolved.blob);
+                const loadedTexture = await loadTexture(path, resolvedBlob);
                 resolvedAssets.textures.set(path, loadedTexture.texture);
 
                 if (loadedTexture.managedUrl) {
@@ -145,30 +180,30 @@ function isImageAsset(path: string): boolean {
     return hasKnownImageExtension(path) || /^(sb[\\/]|storyboard)/i.test(path);
 }
 
-function resolveAssetBlob(requestedPath: string, assets: Map<string, Blob>): { key: string; blob: Blob } | undefined {
+function resolveAssetKey(requestedPath: string, assetKeys: string[]): string | undefined {
     const requested = normalizePath(requestedPath);
 
-    if (assets.has(requestedPath)) {
-        return { key: requestedPath, blob: assets.get(requestedPath)! };
+    if (assetKeys.includes(requestedPath)) {
+        return requestedPath;
     }
 
-    for (const [key, blob] of assets.entries()) {
+    for (const key of assetKeys) {
         if (normalizePath(key) === requested) {
-            return { key, blob };
+            return key;
         }
     }
 
     const fileName = getFileName(requestedPath).toLowerCase();
-    for (const [key, blob] of assets.entries()) {
+    for (const key of assetKeys) {
         if (getFileName(key).toLowerCase() === fileName) {
-            return { key, blob };
+            return key;
         }
     }
 
     if (!hasKnownImageExtension(requestedPath) && !isVideoPath(requestedPath)) {
         for (const extension of getImageExtensions()) {
             const withExtension = `${requestedPath}${extension}`;
-            const resolved = resolveAssetBlob(withExtension, assets);
+            const resolved = resolveAssetKey(withExtension, assetKeys);
             if (resolved) {
                 return resolved;
             }
