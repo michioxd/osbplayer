@@ -1,0 +1,1 @@
+import{r}from"./index-CROY3Fa2.js";export{r as WebGLRenderer};
