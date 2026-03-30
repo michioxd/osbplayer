@@ -1,5 +1,5 @@
 @charset "UTF-8";
-@import "@icon/themify-icons/themify-icons.css";
+@import "@fortawesome/fontawesome-free/css/all.min.css";
 
 * {
     margin: 0;
@@ -106,25 +106,151 @@ a {
             border-color: #444444aa;
         }
 
+        i {
+            pointer-events: none;
+        }
+
         &#toggle-layout-border-labels {
             font-size: 12px;
             font-weight: 700;
             letter-spacing: 0.02em;
         }
 
-        &.renderer-backend-button {
-            width: auto;
-            min-width: 44px;
-            padding: 0 0.55rem;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-        }
-
         &.is-active {
             background: #4c6ef5aa;
             border-color: #748ffc;
             color: #ffffff;
+        }
+    }
+
+    .settings-menu {
+        position: relative;
+        flex: none;
+    }
+
+    .settings-panel {
+        position: absolute;
+        right: 0;
+        bottom: calc(100% + 10px);
+        width: min(350px, calc(100vw - 1rem));
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 0.5rem;
+        background: #111111f2;
+        border: 1px solid #2c2c2c;
+        box-shadow: 0 14px 36px #00000080;
+        backdrop-filter: blur(26px);
+        z-index: 30;
+
+        &[hidden] {
+            display: none;
+        }
+
+        .settings-view {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+
+            &[hidden] {
+                display: none;
+            }
+        }
+
+        .settings-item {
+            width: 100%;
+            height: auto;
+            min-height: 45px;
+            padding: 0.2rem 0.5rem;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 0.75rem;
+            text-align: left;
+            font: inherit;
+        }
+
+        .settings-item__icon {
+            width: 24px;
+            flex: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #d9d9d9;
+        }
+
+        .settings-item__content {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .settings-item__label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #f3f3f3;
+        }
+
+        .settings-item__description {
+            font-size: 11px;
+            line-height: 1.3;
+            color: #ffffffaa;
+            font-weight: normal;
+        }
+
+        .settings-item__value {
+            flex: none;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: #d9d9d9;
+        }
+
+        .settings-item__meta {
+            flex: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-left: auto;
+        }
+
+        .settings-item__chevron {
+            color: #cfcfcf;
+            font-size: 11px;
+        }
+
+        .settings-item.is-active .settings-item__value {
+            color: #ffffff;
+        }
+
+        .settings-item.is-active .settings-item__icon {
+            color: #ffffff;
+        }
+
+        .settings-nav-item {
+            min-height: 42px;
+        }
+
+        .settings-resolution-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .settings-resolution-option {
+            .settings-item__check {
+                opacity: 0;
+                color: #ffffff;
+                transition: opacity 0.2s ease;
+            }
+
+            &.is-active {
+                .settings-item__check {
+                    opacity: 1;
+                }
+            }
         }
     }
 
@@ -163,6 +289,7 @@ a {
     width: 100%;
     height: 100%;
     display: block;
+    transition: 0.2s;
 }
 
 .menu-backdrop {
@@ -378,5 +505,11 @@ a {
     .bar {
         flex-wrap: wrap;
         justify-content: normal;
+
+        .settings-panel {
+            right: auto;
+            left: 50%;
+            transform: translateX(-50%);
+        }
     }
 }

@@ -1,6 +1,11 @@
 import "./main.scss";
 import { AudioController } from "./audio/AudioController";
 import { SampleScheduler } from "./audio/SampleScheduler";
+import {
+    formatRenderResolutionPreference,
+    isRenderResolutionPreference,
+    type RenderResolutionPreference,
+} from "./storyboard/renderResolution";
 import { StoryboardRenderer, type RendererBackendPreference } from "./storyboard/renderer";
 import { disposeResolvedAssets, loadStoryboardAssets, type ResolvedAssets } from "./storyboard/assets";
 import { parseStoryboard } from "./storyboard/parser";
@@ -18,6 +23,7 @@ const STORAGE_KEY_LAYOUT_BORDER_LABELS = "osbplayer:layout-border-labels";
 const STORAGE_KEY_STATS = "osbplayer:stats";
 const STORAGE_KEY_FIXED_CONTROLS = "osbplayer:fixed-controls";
 const STORAGE_KEY_RENDERER_BACKEND = "osbplayer:renderer-backend";
+const STORAGE_KEY_RENDER_RESOLUTION = "osbplayer:render-resolution";
 export const GIT_HASH = import.meta.env.VITE_GIT_COMMIT;
 export const GIT_BRANCH = import.meta.env.VITE_GIT_CURRENT_BRANCH;
 const RENDERER_BACKEND_ORDER: RendererBackendPreference[] = ["webgpu", "webgl", "canvas"];
@@ -28,6 +34,7 @@ export class App {
     private readonly renderer: StoryboardRenderer;
     private readonly audio = new AudioController();
     private rendererPreference: RendererBackendPreference;
+    private renderResolutionPreference: RenderResolutionPreference;
 
     private archive?: OszArchiveData;
     private currentStoryboard?: PreparedStoryboardData;
@@ -39,6 +46,7 @@ export class App {
 
     constructor() {
         this.rendererPreference = this.getStoredRendererBackend();
+        this.renderResolutionPreference = this.getStoredRenderResolution();
         this.fileInput.type = "file";
         this.fileInput.accept = ".osz";
         this.fileInput.addEventListener("change", () => {
@@ -56,6 +64,7 @@ export class App {
             onToggleLayoutBorders: () => this.toggleLayoutBorders(),
             onToggleLayoutBorderLabels: () => this.toggleLayoutBorderLabels(),
             onCycleRendererBackend: () => void this.cycleRendererBackend(),
+            onSelectRenderResolution: (resolution) => this.setRenderResolution(resolution),
             onToggleStats: () => this.toggleStats(),
             onToggleFullscreen: () => void this.renderer.toggleFullscreen(),
             onStop: () => this.stop(),
@@ -64,7 +73,11 @@ export class App {
             onPointerActivity: () => this.handlePointerActivity(),
         });
 
-        this.renderer = new StoryboardRenderer(qs<HTMLElement>("#storyboard-host"), this.rendererPreference);
+        this.renderer = new StoryboardRenderer(
+            qs<HTMLElement>("#storyboard-host"),
+            this.rendererPreference,
+            this.renderResolutionPreference,
+        );
         this.renderer.setPointerActivityListener(() => this.handlePointerActivity());
         this.renderer.setTickListener((time) => this.handleRenderTick(time));
         this.renderer.setStatsBuildInfo(GIT_HASH, GIT_BRANCH);
@@ -79,6 +92,7 @@ export class App {
         this.ui.setLayoutBordersState(false);
         this.ui.setLayoutBorderLabelsState(true);
         this.ui.setRendererBackendState(this.rendererPreference);
+        this.ui.setRenderResolutionState(this.renderResolutionPreference);
         this.ui.setStatsState(false);
     }
 
@@ -299,12 +313,16 @@ export class App {
         const layoutBordersVisible = this.getStoredBoolean(STORAGE_KEY_LAYOUT_BORDERS, false);
         const layoutBorderLabelsVisible = this.getStoredBoolean(STORAGE_KEY_LAYOUT_BORDER_LABELS, true);
         const statsVisible = this.getStoredBoolean(STORAGE_KEY_STATS, false);
+        const renderResolution = this.getStoredRenderResolution();
 
         this.setFixedControls(fixedControls);
         this.renderer.setLayoutBordersVisible(layoutBordersVisible);
         this.ui.setLayoutBordersState(layoutBordersVisible);
         this.renderer.setLayoutBorderLabelsVisible(layoutBorderLabelsVisible);
         this.ui.setLayoutBorderLabelsState(layoutBorderLabelsVisible);
+        this.renderResolutionPreference = renderResolution;
+        this.renderer.setRenderResolution(renderResolution);
+        this.ui.setRenderResolutionState(renderResolution);
         this.renderer.setStatsVisible(statsVisible);
         this.ui.setStatsState(statsVisible);
     }
@@ -351,6 +369,27 @@ export class App {
         }
     }
 
+    private getStoredRenderResolution(): RenderResolutionPreference {
+        try {
+            const value = window.localStorage.getItem(STORAGE_KEY_RENDER_RESOLUTION);
+            if (value && isRenderResolutionPreference(value)) {
+                return value;
+            }
+        } catch {
+            logger.warn(`Unable to read preference: ${STORAGE_KEY_RENDER_RESOLUTION}`);
+        }
+
+        return "auto";
+    }
+
+    private setStoredRenderResolution(value: RenderResolutionPreference): void {
+        try {
+            window.localStorage.setItem(STORAGE_KEY_RENDER_RESOLUTION, value);
+        } catch {
+            logger.warn(`Unable to persist preference: ${STORAGE_KEY_RENDER_RESOLUTION}`);
+        }
+    }
+
     private async cycleRendererBackend(): Promise<void> {
         const currentIndex = RENDERER_BACKEND_ORDER.indexOf(this.rendererPreference);
         const nextBackend = RENDERER_BACKEND_ORDER[(currentIndex + 1) % RENDERER_BACKEND_ORDER.length];
@@ -364,6 +403,7 @@ export class App {
             this.ui.setRendererBackendState(nextBackend);
             this.ui.setStatus(`Switching renderer to ${formatRendererBackend(nextBackend)}...`);
             await this.renderer.reinitialize(nextBackend);
+            this.renderer.setRenderResolution(this.renderResolutionPreference);
             this.renderer.setStatsBuildInfo(GIT_HASH, GIT_BRANCH);
             this.setStoredRendererBackend(nextBackend);
 
@@ -386,6 +426,15 @@ export class App {
             logger.error("Failed to switch renderer backend", error);
             this.ui.setStatus("Failed to switch renderer backend.");
         }
+    }
+
+    private setRenderResolution(resolution: RenderResolutionPreference): void {
+        this.renderResolutionPreference = resolution;
+        this.renderer.setRenderResolution(resolution);
+        this.ui.setRenderResolutionState(resolution);
+        this.setStoredRenderResolution(resolution);
+        this.ui.setStatus(`Render resolution: ${formatRenderResolutionPreference(resolution)}`);
+        this.handlePointerActivity();
     }
 
     private seek(ratio: number): void {

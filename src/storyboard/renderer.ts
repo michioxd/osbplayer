@@ -3,6 +3,7 @@ import { type PreparedStoryboardData } from "../types/storyboard";
 import { clamp } from "../utils/dom";
 import { getMimeType, isVideoPath } from "../utils/path";
 import type { ResolvedAssets } from "./assets";
+import { getRenderResolutionDimensions, type RenderResolutionPreference } from "./renderResolution";
 import {
     colorForVisualLayer,
     createLayoutBorder,
@@ -62,6 +63,7 @@ export class StoryboardRenderer {
     private readonly canvasHost: HTMLElement;
     private resizeObserver?: ResizeObserver;
     private backendPreference: RendererBackendPreference;
+    private renderResolutionPreference: RenderResolutionPreference;
 
     private animationFrameHandle = 0;
     private currentTime = 0;
@@ -93,9 +95,14 @@ export class StoryboardRenderer {
     private activationStartCursor = 0;
     private activationEndCursor = 0;
 
-    constructor(canvasHost: HTMLElement, backendPreference: RendererBackendPreference = "webgpu") {
+    constructor(
+        canvasHost: HTMLElement,
+        backendPreference: RendererBackendPreference = "webgpu",
+        renderResolutionPreference: RenderResolutionPreference = "auto",
+    ) {
         this.canvasHost = canvasHost;
         this.backendPreference = backendPreference;
+        this.renderResolutionPreference = renderResolutionPreference;
         this.stageRoot.sortableChildren = true;
         this.stageRoot.label = "storyboard-root";
         this.videoLayer.sortableChildren = true;
@@ -138,6 +145,20 @@ export class StoryboardRenderer {
 
     getBackendPreference(): RendererBackendPreference {
         return this.backendPreference;
+    }
+
+    setRenderResolution(resolution: RenderResolutionPreference): void {
+        this.renderResolutionPreference = resolution;
+        if (!this.initialized) {
+            return;
+        }
+
+        this.resize();
+        this.renderFrame(this.currentTime, true);
+    }
+
+    getRenderResolution(): RenderResolutionPreference {
+        return this.renderResolutionPreference;
     }
 
     private async initApplication(): Promise<void> {
@@ -408,12 +429,12 @@ export class StoryboardRenderer {
     private readonly resize = (): void => {
         const hostWidth = this.canvasHost.clientWidth || window.innerWidth;
         const hostHeight = this.canvasHost.clientHeight || window.innerHeight;
-        const width = Math.max(1, Math.floor(Math.min(hostWidth, (hostHeight * 16) / 9)));
-        const height = Math.max(1, Math.floor(Math.min(hostHeight, (hostWidth * 9) / 16)));
+        const displayWidth = Math.max(1, Math.floor(Math.min(hostWidth, (hostHeight * 16) / 9)));
+        const displayHeight = Math.max(1, Math.floor(Math.min(hostHeight, (hostWidth * 9) / 16)));
+        const renderSize = getRenderResolutionDimensions(this.renderResolutionPreference, displayWidth, displayHeight);
+        const width = Math.max(1, renderSize.width);
+        const height = Math.max(1, renderSize.height);
         this.size = { width, height };
-
-        this.app.canvas.style.width = `${width}px`;
-        this.app.canvas.style.height = `${height}px`;
 
         const scale = Math.min(width / this.frameWidth, height / STORYBOARD_HEIGHT);
         const contentWidth = this.frameWidth * scale;
@@ -453,6 +474,8 @@ export class StoryboardRenderer {
         this.updateStatsOverlay();
 
         this.app.renderer.resize(width, height);
+        this.app.canvas.style.width = `${displayWidth}px`;
+        this.app.canvas.style.height = `${displayHeight}px`;
     };
 
     private readonly handlePointerMove = (_event: FederatedPointerEvent | PointerEvent): void => {

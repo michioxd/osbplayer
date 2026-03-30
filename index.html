@@ -49,10 +49,10 @@
             </div>
             <div class="bar controls">
                 <button id="play-pause">
-                    <i class="ti ti-control-play"></i>
+                    <i class="fa-solid fa-play"></i>
                 </button>
                 <button id="stop-all" title="Stop playback" aria-label="Stop playback">
-                    <i class="ti ti-control-stop"></i>
+                    <i class="fa-solid fa-stop"></i>
                 </button>
                 <div class="time-display">
                     <span id="current-time">00:00</span>
@@ -64,53 +64,154 @@
                     <div id="progress-handle" class="progress-handle"></div>
                 </div>
                 <button id="open-file" title="Open .osz file" aria-label="Open .osz file">
-                    <i class="ti ti-zip"></i>
+                    <i class="fa-solid fa-folder-open"></i>
                 </button>
                 <button id="show-menu" title="Select difficulty" aria-label="Select difficulty">
-                    <i class="ti ti-menu"></i>
+                    <i class="fa-solid fa-bars"></i>
                 </button>
-                <button
-                    id="toggle-fixed-controls"
-                    title="Pin controls UI"
-                    aria-label="Toggle fixed controls UI"
-                    aria-pressed="false"
-                >
-                    <i class="ti ti-pin2"></i>
-                </button>
-                <button
-                    id="toggle-layout-borders"
-                    title="Show layout borders"
-                    aria-label="Toggle layout borders"
-                    aria-pressed="false"
-                >
-                    <i class="ti ti-layout-grid2"></i>
-                </button>
-                <button
-                    id="toggle-layout-border-labels"
-                    title="Hide layout border labels"
-                    aria-label="Toggle layout border labels"
-                    aria-pressed="true"
-                >
-                    Lb
-                </button>
-                <button
-                    id="toggle-renderer-backend"
-                    class="renderer-backend-button"
-                    title="Switch renderer backend"
-                    aria-label="Switch renderer backend"
-                >
-                    GPU
-                </button>
-                <button
-                    id="toggle-stats"
-                    title="Show stats overlay"
-                    aria-label="Toggle stats overlay"
-                    aria-pressed="false"
-                >
-                    <i class="ti ti-align-left"></i>
-                </button>
+                <div id="settings-menu" class="settings-menu">
+                    <button
+                        id="toggle-settings-menu"
+                        title="Open settings"
+                        aria-label="Open settings"
+                        aria-haspopup="menu"
+                        aria-controls="settings-panel"
+                        aria-expanded="false"
+                    >
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                    <div id="settings-panel" class="settings-panel" role="menu" hidden>
+                        <div id="settings-view-main" class="settings-view">
+                            <button
+                                id="toggle-fixed-controls"
+                                class="settings-item"
+                                title="Pin controls UI"
+                                aria-label="Toggle fixed controls UI"
+                                aria-pressed="false"
+                            >
+                                <span class="settings-item__icon" aria-hidden="true">
+                                    <i class="fa-solid fa-thumbtack"></i>
+                                </span>
+                                <span class="settings-item__content">
+                                    <span class="settings-item__label">Pin controls UI</span>
+                                    <span class="settings-item__description">Keep the top and bottom bars visible</span>
+                                </span>
+                                <span id="toggle-fixed-controls-value" class="settings-item__value">Off</span>
+                            </button>
+                            <button
+                                id="toggle-layout-borders"
+                                class="settings-item"
+                                title="Show layout borders"
+                                aria-label="Toggle layout borders"
+                                aria-pressed="false"
+                            >
+                                <span class="settings-item__icon" aria-hidden="true">
+                                    <i class="fa-solid fa-border-all"></i>
+                                </span>
+                                <span class="settings-item__content">
+                                    <span class="settings-item__label">Layout borders</span>
+                                    <span class="settings-item__description">Show the storyboard frame guides</span>
+                                </span>
+                                <span id="toggle-layout-borders-value" class="settings-item__value">Off</span>
+                            </button>
+                            <button
+                                id="toggle-layout-border-labels"
+                                class="settings-item"
+                                title="Hide layout border labels"
+                                aria-label="Toggle layout border labels"
+                                aria-pressed="true"
+                            >
+                                <span class="settings-item__icon" aria-hidden="true">
+                                    <i class="fa-solid fa-tag"></i>
+                                </span>
+                                <span class="settings-item__content">
+                                    <span class="settings-item__label">Border labels</span>
+                                    <span class="settings-item__description">Show labels for each layout border</span>
+                                </span>
+                                <span id="toggle-layout-border-labels-value" class="settings-item__value">On</span>
+                            </button>
+                            <button
+                                id="toggle-renderer-backend"
+                                class="settings-item"
+                                title="Switch renderer backend"
+                                aria-label="Switch renderer backend"
+                            >
+                                <span class="settings-item__icon" aria-hidden="true">
+                                    <i class="fa-solid fa-microchip"></i>
+                                </span>
+                                <span class="settings-item__content">
+                                    <span class="settings-item__label">Renderer backend</span>
+                                    <span class="settings-item__description"
+                                        >Cycle between WebGPU, WebGL, and Canvas</span
+                                    >
+                                </span>
+                                <span id="toggle-renderer-backend-value" class="settings-item__value">GPU</span>
+                            </button>
+                            <button
+                                id="toggle-resolution"
+                                class="settings-item"
+                                title="Change rendering resolution"
+                                aria-label="Change rendering resolution"
+                                aria-haspopup="menu"
+                                aria-controls="settings-view-resolution"
+                                aria-expanded="false"
+                            >
+                                <span class="settings-item__icon" aria-hidden="true">
+                                    <i class="fa-solid fa-display"></i>
+                                </span>
+                                <span class="settings-item__content">
+                                    <span class="settings-item__label">Resolution</span>
+                                    <span class="settings-item__description">Auto resize or choose 144p up to 4K</span>
+                                </span>
+                                <span class="settings-item__meta">
+                                    <span id="toggle-resolution-value" class="settings-item__value">Auto</span>
+                                    <span class="settings-item__chevron" aria-hidden="true">
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </span>
+                                </span>
+                            </button>
+                            <button
+                                id="toggle-stats"
+                                class="settings-item"
+                                title="Show stats overlay"
+                                aria-label="Toggle stats overlay"
+                                aria-pressed="false"
+                            >
+                                <span class="settings-item__icon" aria-hidden="true">
+                                    <i class="fa-solid fa-chart-column"></i>
+                                </span>
+                                <span class="settings-item__content">
+                                    <span class="settings-item__label">Stats overlay</span>
+                                    <span class="settings-item__description"
+                                        >Display render and playback diagnostics</span
+                                    >
+                                </span>
+                                <span id="toggle-stats-value" class="settings-item__value">Off</span>
+                            </button>
+                        </div>
+                        <div id="settings-view-resolution" class="settings-view" hidden>
+                            <button
+                                id="settings-resolution-back"
+                                class="settings-item settings-nav-item"
+                                title="Back to settings"
+                                aria-label="Back to settings"
+                            >
+                                <span class="settings-item__icon" aria-hidden="true">
+                                    <i class="fa-solid fa-chevron-left"></i>
+                                </span>
+                                <span class="settings-item__content">
+                                    <span class="settings-item__label">Resolution</span>
+                                    <span class="settings-item__description"
+                                        >Choose the internal render resolution</span
+                                    >
+                                </span>
+                            </button>
+                            <div id="settings-resolution-list" class="settings-resolution-list" role="menu"></div>
+                        </div>
+                    </div>
+                </div>
                 <button id="fullscreen-toggle">
-                    <i class="ti ti-fullscreen"></i>
+                    <i class="fa-solid fa-expand"></i>
                 </button>
             </div>
             <div id="storyboard-host">

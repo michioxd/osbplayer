@@ -5,6 +5,7 @@
     "": {
       "name": "osbplayer",
       "dependencies": {
+        "@fortawesome/fontawesome-free": "^7.2.0",
         "@icon/themify-icons": "^1.0.1-alpha.3",
         "@types/howler": "^2.2.12",
         "@zip.js/zip.js": "^2.8.23",
@@ -57,6 +58,8 @@
     "@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.0", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-N10dEJNSsUx41Z6pZsXU8FjPjpBEplgH24sfkmITrBED1/U2Esum9F3lfLrMjKHHjmi557zQn7kR9R+XWXu5Rg=="],
 
     "@exodus/bytes": ["@exodus/bytes@1.15.0", "", { "peerDependencies": { "@noble/hashes": "^1.8.0 || ^2.0.0" }, "optionalPeers": ["@noble/hashes"] }, "sha512-UY0nlA+feH81UGSHv92sLEPLCeZFjXOuHhrIo0HQydScuQc8s0A7kL/UdgwgDq8g8ilksmuoF35YVTNphV2aBQ=="],
+
+    "@fortawesome/fontawesome-free": ["@fortawesome/fontawesome-free@7.2.0", "", {}, "sha512-3DguDv/oUE+7vjMeTSOjCSG+KeawgVQOHrKRnvUuqYh1mfArrh7s+s8hXW3e4RerBA1+Wh+hBqf8sJNpqNrBWg=="],
 
     "@icon/themify-icons": ["@icon/themify-icons@1.0.1-alpha.3", "", {}, "sha512-KDE5pjBgnEVugPhcQxBmhMMT+5n2YU/A6yHHeDHSGL68gHaLp27a5WxV4LVakN0kiiA3MVdSkUPdX6n/UWS7zw=="],
 
