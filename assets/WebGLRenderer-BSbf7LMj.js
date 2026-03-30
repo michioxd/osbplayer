@@ -1,0 +1,1 @@
+import{r}from"./index-BMS7bWDm.js";export{r as WebGLRenderer};
