@@ -401,7 +401,6 @@ export class App {
             this.pause();
             this.rendererPreference = nextBackend;
             this.ui.setRendererBackendState(nextBackend);
-            this.ui.setStatus(`Switching renderer to ${formatRendererBackend(nextBackend)}...`);
             await this.renderer.reinitialize(nextBackend);
             this.renderer.setRenderResolution(this.renderResolutionPreference);
             this.renderer.setStatsBuildInfo(GIT_HASH, GIT_BRANCH);
@@ -432,7 +431,6 @@ export class App {
         this.renderer.setRenderResolution(resolution);
         this.ui.setRenderResolutionState(resolution);
         this.setStoredRenderResolution(resolution);
-        this.ui.setStatus(`Render resolution: ${formatRenderResolutionPreference(resolution)}`);
         this.handlePointerActivity();
     }
 
