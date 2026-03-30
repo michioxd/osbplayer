@@ -421,7 +421,6 @@ export class App {
             }
 
             this.handlePointerActivity();
-            this.ui.setStatus(`Renderer backend: ${formatRendererBackend(nextBackend)}`);
         } catch (error) {
             logger.error("Failed to switch renderer backend", error);
             this.ui.setStatus("Failed to switch renderer backend.");
