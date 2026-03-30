@@ -1,7 +1,7 @@
 import "./main.scss";
 import { AudioController } from "./audio/AudioController";
 import { SampleScheduler } from "./audio/SampleScheduler";
-import { StoryboardRenderer } from "./storyboard/renderer";
+import { StoryboardRenderer, type RendererBackendPreference } from "./storyboard/renderer";
 import { disposeResolvedAssets, loadStoryboardAssets, type ResolvedAssets } from "./storyboard/assets";
 import { parseStoryboard } from "./storyboard/parser";
 import { prepareStoryboard } from "./storyboard/preparer";
@@ -17,14 +17,17 @@ const STORAGE_KEY_LAYOUT_BORDERS = "osbplayer:layout-borders";
 const STORAGE_KEY_LAYOUT_BORDER_LABELS = "osbplayer:layout-border-labels";
 const STORAGE_KEY_STATS = "osbplayer:stats";
 const STORAGE_KEY_FIXED_CONTROLS = "osbplayer:fixed-controls";
+const STORAGE_KEY_RENDERER_BACKEND = "osbplayer:renderer-backend";
 export const GIT_HASH = import.meta.env.VITE_GIT_COMMIT;
 export const GIT_BRANCH = import.meta.env.VITE_GIT_CURRENT_BRANCH;
+const RENDERER_BACKEND_ORDER: RendererBackendPreference[] = ["webgpu", "webgl", "canvas"];
 
 export class App {
     private readonly fileInput = document.createElement("input");
     private readonly ui: PlayerUI;
     private readonly renderer: StoryboardRenderer;
     private readonly audio = new AudioController();
+    private rendererPreference: RendererBackendPreference;
 
     private archive?: OszArchiveData;
     private currentStoryboard?: PreparedStoryboardData;
@@ -35,6 +38,7 @@ export class App {
     private playing = false;
 
     constructor() {
+        this.rendererPreference = this.getStoredRendererBackend();
         this.fileInput.type = "file";
         this.fileInput.accept = ".osz";
         this.fileInput.addEventListener("change", () => {
@@ -51,6 +55,7 @@ export class App {
             onToggleFixedControls: () => this.toggleFixedControls(),
             onToggleLayoutBorders: () => this.toggleLayoutBorders(),
             onToggleLayoutBorderLabels: () => this.toggleLayoutBorderLabels(),
+            onCycleRendererBackend: () => void this.cycleRendererBackend(),
             onToggleStats: () => this.toggleStats(),
             onToggleFullscreen: () => void this.renderer.toggleFullscreen(),
             onStop: () => this.stop(),
@@ -59,7 +64,7 @@ export class App {
             onPointerActivity: () => this.handlePointerActivity(),
         });
 
-        this.renderer = new StoryboardRenderer(qs<HTMLElement>("#storyboard-host"));
+        this.renderer = new StoryboardRenderer(qs<HTMLElement>("#storyboard-host"), this.rendererPreference);
         this.renderer.setPointerActivityListener(() => this.handlePointerActivity());
         this.renderer.setTickListener((time) => this.handleRenderTick(time));
         this.renderer.setStatsBuildInfo(GIT_HASH, GIT_BRANCH);
@@ -73,6 +78,7 @@ export class App {
         this.ui.setFixedControlsState(false);
         this.ui.setLayoutBordersState(false);
         this.ui.setLayoutBorderLabelsState(true);
+        this.ui.setRendererBackendState(this.rendererPreference);
         this.ui.setStatsState(false);
     }
 
@@ -324,6 +330,64 @@ export class App {
         }
     }
 
+    private getStoredRendererBackend(): RendererBackendPreference {
+        try {
+            const value = window.localStorage.getItem(STORAGE_KEY_RENDERER_BACKEND);
+            if (value === "webgpu" || value === "webgl" || value === "canvas") {
+                return value;
+            }
+        } catch {
+            logger.warn(`Unable to read preference: ${STORAGE_KEY_RENDERER_BACKEND}`);
+        }
+
+        return "webgpu";
+    }
+
+    private setStoredRendererBackend(value: RendererBackendPreference): void {
+        try {
+            window.localStorage.setItem(STORAGE_KEY_RENDERER_BACKEND, value);
+        } catch {
+            logger.warn(`Unable to persist preference: ${STORAGE_KEY_RENDERER_BACKEND}`);
+        }
+    }
+
+    private async cycleRendererBackend(): Promise<void> {
+        const currentIndex = RENDERER_BACKEND_ORDER.indexOf(this.rendererPreference);
+        const nextBackend = RENDERER_BACKEND_ORDER[(currentIndex + 1) % RENDERER_BACKEND_ORDER.length];
+
+        try {
+            const currentTime = this.getPlaybackTime();
+            const shouldResume = this.playing;
+
+            this.pause();
+            this.rendererPreference = nextBackend;
+            this.ui.setRendererBackendState(nextBackend);
+            this.ui.setStatus(`Switching renderer to ${formatRendererBackend(nextBackend)}...`);
+            await this.renderer.reinitialize(nextBackend);
+            this.renderer.setStatsBuildInfo(GIT_HASH, GIT_BRANCH);
+            this.setStoredRendererBackend(nextBackend);
+
+            if (this.currentStoryboard && this.resolvedAssets) {
+                await this.renderer.load(this.currentStoryboard, this.resolvedAssets);
+                this.renderer.setDuration(this.getDuration());
+                this.renderer.seek(currentTime);
+                this.ui.setDuration(currentTime, this.getDuration());
+
+                if (shouldResume) {
+                    this.play();
+                }
+            } else {
+                this.renderer.refreshViewport();
+            }
+
+            this.handlePointerActivity();
+            this.ui.setStatus(`Renderer backend: ${formatRendererBackend(nextBackend)}`);
+        } catch (error) {
+            logger.error("Failed to switch renderer backend", error);
+            this.ui.setStatus("Failed to switch renderer backend.");
+        }
+    }
+
     private seek(ratio: number): void {
         const time = this.getDuration() * ratio;
         this.renderer.seek(time);
@@ -432,6 +496,17 @@ export class App {
             }
             this.ui.setControlsVisible(true);
         }
+    }
+}
+
+function formatRendererBackend(backend: RendererBackendPreference): string {
+    switch (backend) {
+        case "webgpu":
+            return "WebGPU";
+        case "webgl":
+            return "WebGL";
+        case "canvas":
+            return "Canvas";
     }
 }
 

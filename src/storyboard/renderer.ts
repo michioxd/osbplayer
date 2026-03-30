@@ -36,6 +36,8 @@ import type { RendererStats } from "./statsOverlay";
 
 const FPS_UPDATE_INTERVAL_MS = 300;
 
+export type RendererBackendPreference = "webgpu" | "webgl" | "canvas";
+
 export interface RenderSnapshot {
     duration: number;
     width: number;
@@ -43,7 +45,7 @@ export interface RenderSnapshot {
 }
 
 export class StoryboardRenderer {
-    private readonly app = new Application();
+    private app = new Application();
     private readonly stageRoot = new Container();
     private readonly statsOverlay = new StatsOverlay();
     private readonly frameBackground = new Sprite(Texture.WHITE);
@@ -58,6 +60,7 @@ export class StoryboardRenderer {
     private readonly activationEndVisuals: RenderVisual[] = [];
     private readonly canvasHost: HTMLElement;
     private resizeObserver?: ResizeObserver;
+    private backendPreference: RendererBackendPreference;
 
     private animationFrameHandle = 0;
     private currentTime = 0;
@@ -89,8 +92,9 @@ export class StoryboardRenderer {
     private activationStartCursor = 0;
     private activationEndCursor = 0;
 
-    constructor(canvasHost: HTMLElement) {
+    constructor(canvasHost: HTMLElement, backendPreference: RendererBackendPreference = "webgpu") {
         this.canvasHost = canvasHost;
+        this.backendPreference = backendPreference;
         this.stageRoot.sortableChildren = true;
         this.videoLayer.sortableChildren = true;
         this.playfieldRoot.sortableChildren = true;
@@ -108,6 +112,26 @@ export class StoryboardRenderer {
     }
 
     async init(): Promise<void> {
+        await this.initApplication();
+    }
+
+    async reinitialize(backendPreference: RendererBackendPreference): Promise<void> {
+        this.stop();
+        this.clearScene();
+        this.storyboard = undefined;
+        this.duration = 0;
+        this.currentTime = 0;
+        this.backendPreference = backendPreference;
+        this.disposeApplication();
+        this.app = new Application();
+        await this.initApplication();
+    }
+
+    getBackendPreference(): RendererBackendPreference {
+        return this.backendPreference;
+    }
+
+    private async initApplication(): Promise<void> {
         await this.app.init({
             width: this.size.width,
             height: this.size.height,
@@ -116,7 +140,7 @@ export class StoryboardRenderer {
             autoDensity: true,
             backgroundColor: 0x000000,
             eventMode: "none",
-            preference: "webgl",
+            preference: this.backendPreference,
             powerPreference: "high-performance",
             clearBeforeRender: true,
             hello: true,
@@ -361,13 +385,9 @@ export class StoryboardRenderer {
 
     destroy(): void {
         this.pause();
-        this.resizeObserver?.disconnect();
-        this.resizeObserver = undefined;
-        window.removeEventListener("resize", this.resize);
-        this.app.canvas.removeEventListener("pointermove", this.handlePointerMove);
-        this.app.canvas.removeEventListener("pointerdown", this.handlePointerMove);
         this.clearScene();
-        this.app.destroy(undefined, { children: true, texture: false, textureSource: false });
+        this.disposeApplication();
+        this.app.destroy(undefined, { children: false, texture: false, textureSource: false });
     }
 
     private readonly resize = (): void => {
@@ -531,6 +551,18 @@ export class StoryboardRenderer {
         this.videoElement?.load();
         this.videoElement = undefined;
         this.updateStatsOverlay();
+    }
+
+    private disposeApplication(): void {
+        this.resizeObserver?.disconnect();
+        this.resizeObserver = undefined;
+        window.removeEventListener("resize", this.resize);
+        this.app.canvas.removeEventListener("pointermove", this.handlePointerMove);
+        this.app.canvas.removeEventListener("pointerdown", this.handlePointerMove);
+        this.app.stage.removeChild(this.stageRoot);
+        this.app.stage.removeChild(this.statsOverlay.container);
+        this.app.destroy(undefined, { children: false, texture: false, textureSource: false });
+        this.initialized = false;
     }
 
     private updateLayoutBorders(): void {

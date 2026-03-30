@@ -9,6 +9,7 @@ export interface PlayerUIEvents {
     onToggleFixedControls: () => void;
     onToggleLayoutBorders: () => void;
     onToggleLayoutBorderLabels: () => void;
+    onCycleRendererBackend: () => void;
     onToggleStats: () => void;
     onToggleFullscreen: () => void;
     onStop: () => void;
@@ -32,6 +33,7 @@ export class PlayerUI {
     private readonly fixedControlsButton = qs<HTMLButtonElement>("#toggle-fixed-controls");
     private readonly layoutBordersButton = qs<HTMLButtonElement>("#toggle-layout-borders");
     private readonly layoutBorderLabelsButton = qs<HTMLButtonElement>("#toggle-layout-border-labels");
+    private readonly rendererBackendButton = qs<HTMLButtonElement>("#toggle-renderer-backend");
     private readonly statsButton = qs<HTMLButtonElement>("#toggle-stats");
     private readonly menuBackdrop = qs<HTMLElement>(".menu-backdrop");
     private readonly difficultySection = qs<HTMLElement>("#difficulty-dialog");
@@ -54,6 +56,7 @@ export class PlayerUI {
         this.fixedControlsButton.addEventListener("click", () => this.events.onToggleFixedControls());
         this.layoutBordersButton.addEventListener("click", () => this.events.onToggleLayoutBorders());
         this.layoutBorderLabelsButton.addEventListener("click", () => this.events.onToggleLayoutBorderLabels());
+        this.rendererBackendButton.addEventListener("click", () => this.events.onCycleRendererBackend());
         this.statsButton.addEventListener("click", () => this.events.onToggleStats());
         qs<HTMLButtonElement>("#fullscreen-toggle").addEventListener("click", () => this.events.onToggleFullscreen());
         qs<HTMLButtonElement>("#stop-all").addEventListener("click", () => this.events.onStop());
@@ -140,6 +143,13 @@ export class PlayerUI {
         this.layoutBorderLabelsButton.classList.toggle("is-active", enabled);
         this.layoutBorderLabelsButton.setAttribute("aria-pressed", String(enabled));
         this.layoutBorderLabelsButton.title = enabled ? "Hide layout border labels" : "Show layout border labels";
+    }
+
+    setRendererBackendState(backend: "webgpu" | "webgl" | "canvas"): void {
+        const label = getRendererBackendLabel(backend);
+        this.rendererBackendButton.textContent = label.short;
+        this.rendererBackendButton.title = `Renderer backend: ${label.long} (click to switch)`;
+        this.rendererBackendButton.setAttribute("aria-label", `Renderer backend: ${label.long}. Click to switch.`);
     }
 
     setStatsState(enabled: boolean): void {
@@ -238,4 +248,15 @@ function escapeHtml(value: string): string {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#39;");
+}
+
+function getRendererBackendLabel(backend: "webgpu" | "webgl" | "canvas"): { short: string; long: string } {
+    switch (backend) {
+        case "webgpu":
+            return { short: "GPU", long: "WebGPU" };
+        case "webgl":
+            return { short: "GL", long: "WebGL" };
+        case "canvas":
+            return { short: "2D", long: "Canvas" };
+    }
 }
