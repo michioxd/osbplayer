@@ -56,19 +56,26 @@
                 </button>
                 <div class="time-display">
                     <span id="current-time">00:00</span>
+                    <span>/</span>
+                    <span id="total-time">00:00</span>
                 </div>
                 <div class="progress-bar" id="progress-bar">
                     <div id="progress" class="progress"></div>
                     <div id="progress-handle" class="progress-handle"></div>
-                </div>
-                <div class="time-display">
-                    <span id="total-time">00:00</span>
                 </div>
                 <button id="open-file" title="Open .osz file" aria-label="Open .osz file">
                     <i class="ti ti-zip"></i>
                 </button>
                 <button id="show-menu" title="Select difficulty" aria-label="Select difficulty">
                     <i class="ti ti-menu"></i>
+                </button>
+                <button
+                    id="toggle-fixed-controls"
+                    title="Pin controls UI"
+                    aria-label="Toggle fixed controls UI"
+                    aria-pressed="false"
+                >
+                    <i class="ti ti-pin2"></i>
                 </button>
                 <button
                     id="toggle-layout-borders"

@@ -95,11 +95,6 @@ export function renderVisualAtTime(entry: RenderVisual, time: number, gameplaySt
     const x = keyframeValueAt(visual.positionKeyframes[0], time, visual.x, indices, 4);
     const y = keyframeValueAt(visual.positionKeyframes[1], time, visual.y, indices, 5);
 
-    if (x < -300 || x > 1000 || y < -300 || y > 800) {
-        if (sprite.visible) sprite.visible = false;
-        return;
-    }
-
     const rotation = keyframeValueAt(visual.rotationKeyframes, time, 0, indices, 6);
 
     const colourArr = keyframeValueAt<number[] | null>(visual.colourKeyframes, time, null, indices, 7);
@@ -109,18 +104,26 @@ export function renderVisualAtTime(entry: RenderVisual, time: number, gameplaySt
     const flipV = isTimeInRanges(visual.flipVRange, time);
     const additive = isTimeInRanges(visual.additiveRange, time) || shouldBackfillAdditiveRange(visual, time);
 
+    const texture =
+        visual.kind === "animation" ? resolveAnimationFrame(visual, textures, time) || sprite.texture : sprite.texture;
+
     let anchorX = getAnchorX(visual.origin);
     let anchorY = getAnchorY(visual.origin);
     if (flipH !== vectorScaleX < 0) anchorX = 1 - anchorX;
     if (flipV !== vectorScaleY < 0) anchorY = 1 - anchorY;
 
+    const finalScaleX = scaleX * (flipH ? -1 : 1);
+    const finalScaleY = scaleY * (flipV ? -1 : 1);
+
+    if (isSpriteCertainlyOffscreen(x, y, anchorX, anchorY, finalScaleX, finalScaleY, texture)) {
+        if (sprite.visible) sprite.visible = false;
+        return;
+    }
+
     if (!sprite.visible) sprite.visible = true;
 
     if (sprite.anchor.x !== anchorX || sprite.anchor.y !== anchorY) sprite.anchor.set(anchorX, anchorY);
     if (sprite.position.x !== x || sprite.position.y !== y) sprite.position.set(x, y);
-
-    const finalScaleX = scaleX * (flipH ? -1 : 1);
-    const finalScaleY = scaleY * (flipV ? -1 : 1);
     if (sprite.scale.x !== finalScaleX || sprite.scale.y !== finalScaleY) sprite.scale.set(finalScaleX, finalScaleY);
 
     if (sprite.rotation !== rotation) sprite.rotation = rotation;
@@ -133,11 +136,8 @@ export function renderVisualAtTime(entry: RenderVisual, time: number, gameplaySt
     const blendMode = additive ? "add" : "normal";
     if (sprite.blendMode !== blendMode) sprite.blendMode = blendMode;
 
-    if (visual.kind === "animation") {
-        const texture = resolveAnimationFrame(visual, textures, time);
-        if (texture && sprite.texture !== texture) {
-            sprite.texture = texture;
-        }
+    if (sprite.texture !== texture) {
+        sprite.texture = texture;
     }
 }
 
@@ -224,6 +224,13 @@ export function getTextureHeight(texture: Texture): number {
     if (texture.source && texture.source.height > 1) return texture.source.height;
     if (texture.orig && texture.orig.height > 1) return texture.orig.height;
     return 1080;
+}
+
+export function getTextureWidth(texture: Texture): number {
+    if (texture.width > 1) return texture.width;
+    if (texture.source && texture.source.width > 1) return texture.source.width;
+    if (texture.orig && texture.orig.width > 1) return texture.orig.width;
+    return 1920;
 }
 
 export function hasIndependentStoryboardBackground(storyboard: PreparedStoryboardData): boolean {
@@ -363,6 +370,30 @@ function resolveAnimationFrame(
     }
 
     return textures[rawIndex % textures.length];
+}
+
+function isSpriteCertainlyOffscreen(
+    x: number,
+    y: number,
+    anchorX: number,
+    anchorY: number,
+    scaleX: number,
+    scaleY: number,
+    texture: Texture,
+): boolean {
+    const width = getTextureWidth(texture) * Math.abs(scaleX);
+    const height = getTextureHeight(texture) * Math.abs(scaleY);
+
+    const horizontalReach = Math.max(anchorX, 1 - anchorX) * width;
+    const verticalReach = Math.max(anchorY, 1 - anchorY) * height;
+    const conservativeExtent = horizontalReach + verticalReach;
+
+    return (
+        x + conservativeExtent < 0 ||
+        x - conservativeExtent > STORYBOARD_WIDTH ||
+        y + conservativeExtent < 0 ||
+        y - conservativeExtent > STORYBOARD_HEIGHT
+    );
 }
 
 function resolveEarlyUniformScaleDefault(visual: PreparedStoryboardVisual, time: number): number {

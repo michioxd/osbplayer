@@ -16,6 +16,7 @@ const KEYBOARD_SEEK_STEP = 1_000;
 const STORAGE_KEY_LAYOUT_BORDERS = "osbplayer:layout-borders";
 const STORAGE_KEY_LAYOUT_BORDER_LABELS = "osbplayer:layout-border-labels";
 const STORAGE_KEY_STATS = "osbplayer:stats";
+const STORAGE_KEY_FIXED_CONTROLS = "osbplayer:fixed-controls";
 export const GIT_HASH = import.meta.env.VITE_GIT_COMMIT;
 export const GIT_BRANCH = import.meta.env.VITE_GIT_CURRENT_BRANCH;
 
@@ -30,6 +31,7 @@ export class App {
     private resolvedAssets?: ResolvedAssets;
     private sampleScheduler?: SampleScheduler;
     private controlsTimer?: number;
+    private fixedControls = false;
     private playing = false;
 
     constructor() {
@@ -46,6 +48,7 @@ export class App {
             onOpenFile: () => this.fileInput.click(),
             onTogglePlay: () => this.togglePlayback(),
             onToggleMenu: () => this.handleMenuVisibility(),
+            onToggleFixedControls: () => this.toggleFixedControls(),
             onToggleLayoutBorders: () => this.toggleLayoutBorders(),
             onToggleLayoutBorderLabels: () => this.toggleLayoutBorderLabels(),
             onToggleStats: () => this.toggleStats(),
@@ -67,6 +70,7 @@ export class App {
         this.ui.setControlsVisible(true);
         this.ui.hideDialog();
         this.ui.setPlaybackState(false);
+        this.ui.setFixedControlsState(false);
         this.ui.setLayoutBordersState(false);
         this.ui.setLayoutBorderLabelsState(true);
         this.ui.setStatsState(false);
@@ -97,8 +101,15 @@ export class App {
     private async handleOszSelected(file: File): Promise<void> {
         try {
             this.stop();
+            this.ui.showLoadingDialog();
+            this.ui.setLoadingState(true);
+            this.ui.updateLoading({
+                loaded: 0,
+                total: 1,
+                percent: 0,
+                currentFile: `Reading archive: ${file.name}`,
+            });
             this.ui.setStatus(`Reading archive: ${file.name}`);
-            this.ui.hideDialog();
             this.archive = await loadOszArchive(file);
             this.ui.renderDifficulties(this.archive.difficulties);
             this.ui.setLoadingState(false);
@@ -258,10 +269,12 @@ export class App {
     }
 
     private restoreTogglePreferences(): void {
+        const fixedControls = this.getStoredBoolean(STORAGE_KEY_FIXED_CONTROLS, false);
         const layoutBordersVisible = this.getStoredBoolean(STORAGE_KEY_LAYOUT_BORDERS, false);
         const layoutBorderLabelsVisible = this.getStoredBoolean(STORAGE_KEY_LAYOUT_BORDER_LABELS, true);
         const statsVisible = this.getStoredBoolean(STORAGE_KEY_STATS, false);
 
+        this.setFixedControls(fixedControls);
         this.renderer.setLayoutBordersVisible(layoutBordersVisible);
         this.ui.setLayoutBordersState(layoutBordersVisible);
         this.renderer.setLayoutBorderLabelsVisible(layoutBorderLabelsVisible);
@@ -306,6 +319,11 @@ export class App {
         this.ui.setControlsVisible(true);
         if (this.controlsTimer) {
             window.clearTimeout(this.controlsTimer);
+            this.controlsTimer = undefined;
+        }
+
+        if (this.fixedControls) {
+            return;
         }
 
         this.controlsTimer = window.setTimeout(() => {
@@ -316,7 +334,7 @@ export class App {
     }
 
     private handleMenuVisibility(): void {
-        if (this.ui.isMenuVisible()) {
+        if (this.ui.isMenuVisible() || this.fixedControls) {
             this.ui.setControlsVisible(true);
             return;
         }
@@ -370,6 +388,30 @@ export class App {
         this.sampleScheduler?.reset(clampedTime);
         this.ui.setDuration(clampedTime, this.getDuration());
         this.handlePointerActivity();
+    }
+
+    private toggleFixedControls(): void {
+        const next = !this.fixedControls;
+        this.setFixedControls(next);
+        this.setStoredBoolean(STORAGE_KEY_FIXED_CONTROLS, next);
+        this.handlePointerActivity();
+    }
+
+    private setFixedControls(enabled: boolean): void {
+        this.fixedControls = enabled;
+        this.ui.setFixedControlsState(enabled);
+
+        requestAnimationFrame(() => {
+            this.renderer.refreshViewport();
+        });
+
+        if (enabled) {
+            if (this.controlsTimer) {
+                window.clearTimeout(this.controlsTimer);
+                this.controlsTimer = undefined;
+            }
+            this.ui.setControlsVisible(true);
+        }
     }
 }
 

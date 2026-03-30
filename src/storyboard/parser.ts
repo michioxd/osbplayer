@@ -18,6 +18,7 @@ import {
     type StoryboardTrigger,
     type StoryboardVisual,
 } from "../types/storyboard";
+import { v7 as uuidv7 } from "uuid";
 import { removePathQuotes } from "../utils/path";
 
 const LayerNumericMap: Record<number, Layer> = {
@@ -89,7 +90,7 @@ export function parseDifficultyEntry(fileData: string, filePath: string): Diffic
     }
 
     return {
-        id: crypto.randomUUID(),
+        id: uuidv7(),
         name,
         mapper,
         filePath,

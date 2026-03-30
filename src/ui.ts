@@ -6,6 +6,7 @@ export interface PlayerUIEvents {
     onOpenFile: () => void;
     onTogglePlay: () => void;
     onToggleMenu: (visible: boolean) => void;
+    onToggleFixedControls: () => void;
     onToggleLayoutBorders: () => void;
     onToggleLayoutBorderLabels: () => void;
     onToggleStats: () => void;
@@ -28,6 +29,7 @@ export class PlayerUI {
     private readonly progressHandle = qs<HTMLElement>("#progress-handle");
     private readonly progressBar = qs<HTMLElement>("#progress-bar");
     private readonly playPauseIcon = qs<HTMLElement>("#play-pause i");
+    private readonly fixedControlsButton = qs<HTMLButtonElement>("#toggle-fixed-controls");
     private readonly layoutBordersButton = qs<HTMLButtonElement>("#toggle-layout-borders");
     private readonly layoutBorderLabelsButton = qs<HTMLButtonElement>("#toggle-layout-border-labels");
     private readonly statsButton = qs<HTMLButtonElement>("#toggle-stats");
@@ -49,6 +51,7 @@ export class PlayerUI {
         qs<HTMLButtonElement>("#open-file").addEventListener("click", () => this.events.onOpenFile());
         qs<HTMLButtonElement>("#play-pause").addEventListener("click", () => this.events.onTogglePlay());
         qs<HTMLButtonElement>("#show-menu").addEventListener("click", () => this.showDifficultyDialog());
+        this.fixedControlsButton.addEventListener("click", () => this.events.onToggleFixedControls());
         this.layoutBordersButton.addEventListener("click", () => this.events.onToggleLayoutBorders());
         this.layoutBorderLabelsButton.addEventListener("click", () => this.events.onToggleLayoutBorderLabels());
         this.statsButton.addEventListener("click", () => this.events.onToggleStats());
@@ -78,6 +81,9 @@ export class PlayerUI {
         window.addEventListener("pointerup", () => {
             this.dragging = false;
         });
+
+        window.addEventListener("resize", this.updateChromeInsets);
+        this.updateChromeInsets();
     }
 
     setStatus(text: string): void {
@@ -110,6 +116,14 @@ export class PlayerUI {
 
     setControlsVisible(visible: boolean): void {
         this.app.classList.toggle("show", visible);
+    }
+
+    setFixedControlsState(enabled: boolean): void {
+        this.app.classList.toggle("controls-fixed", enabled);
+        this.fixedControlsButton.classList.toggle("is-active", enabled);
+        this.fixedControlsButton.setAttribute("aria-pressed", String(enabled));
+        this.fixedControlsButton.title = enabled ? "Unpin controls UI" : "Pin controls UI";
+        this.updateChromeInsets();
     }
 
     setPlaybackState(playing: boolean): void {
@@ -207,6 +221,14 @@ export class PlayerUI {
         const ratio = (event.clientX - rect.left) / rect.width;
         this.events.onSeek(Math.min(1, Math.max(0, ratio)));
     }
+
+    private readonly updateChromeInsets = (): void => {
+        const headerHeight = qs<HTMLElement>(".bar.header").offsetHeight;
+        const controlsHeight = qs<HTMLElement>(".bar.controls").offsetHeight;
+
+        this.app.style.setProperty("--header-bar-height", `${headerHeight}px`);
+        this.app.style.setProperty("--controls-bar-height", `${controlsHeight}px`);
+    };
 }
 
 function escapeHtml(value: string): string {

@@ -57,6 +57,7 @@ export class StoryboardRenderer {
     private readonly activationStartVisuals: RenderVisual[] = [];
     private readonly activationEndVisuals: RenderVisual[] = [];
     private readonly canvasHost: HTMLElement;
+    private resizeObserver?: ResizeObserver;
 
     private animationFrameHandle = 0;
     private currentTime = 0;
@@ -108,15 +109,17 @@ export class StoryboardRenderer {
 
     async init(): Promise<void> {
         await this.app.init({
-            resizeTo: this.canvasHost,
+            width: this.size.width,
+            height: this.size.height,
             antialias: false,
             resolution: 1,
             autoDensity: true,
             backgroundColor: 0x000000,
             eventMode: "none",
-            preference: "webgpu",
+            preference: "webgl",
             powerPreference: "high-performance",
             clearBeforeRender: true,
+            hello: true,
         });
 
         this.app.stage.addChild(this.stageRoot);
@@ -129,6 +132,8 @@ export class StoryboardRenderer {
         this.gpuInfo = await resolveGpuInfo(this.app.canvas);
         this.initialized = true;
         this.resize();
+        this.resizeObserver = new ResizeObserver(() => this.resize());
+        this.resizeObserver.observe(this.canvasHost);
         window.addEventListener("resize", this.resize);
     }
 
@@ -328,6 +333,15 @@ export class StoryboardRenderer {
         }
     }
 
+    refreshViewport(): void {
+        if (!this.initialized) {
+            return;
+        }
+
+        this.resize();
+        this.renderFrame(this.currentTime, true);
+    }
+
     getSnapshot(): RenderSnapshot {
         return {
             duration: this.duration,
@@ -347,6 +361,8 @@ export class StoryboardRenderer {
 
     destroy(): void {
         this.pause();
+        this.resizeObserver?.disconnect();
+        this.resizeObserver = undefined;
         window.removeEventListener("resize", this.resize);
         this.app.canvas.removeEventListener("pointermove", this.handlePointerMove);
         this.app.canvas.removeEventListener("pointerdown", this.handlePointerMove);
@@ -355,9 +371,14 @@ export class StoryboardRenderer {
     }
 
     private readonly resize = (): void => {
-        const width = this.canvasHost.clientWidth || window.innerWidth;
-        const height = this.canvasHost.clientHeight || window.innerHeight;
+        const hostWidth = this.canvasHost.clientWidth || window.innerWidth;
+        const hostHeight = this.canvasHost.clientHeight || window.innerHeight;
+        const width = Math.max(1, Math.floor(Math.min(hostWidth, (hostHeight * 16) / 9)));
+        const height = Math.max(1, Math.floor(Math.min(hostHeight, (hostWidth * 9) / 16)));
         this.size = { width, height };
+
+        this.app.canvas.style.width = `${width}px`;
+        this.app.canvas.style.height = `${height}px`;
 
         const scale = Math.min(width / this.frameWidth, height / STORYBOARD_HEIGHT);
         const contentWidth = this.frameWidth * scale;
