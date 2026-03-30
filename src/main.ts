@@ -1,11 +1,7 @@
 import "./main.scss";
 import { AudioController } from "./audio/AudioController";
 import { SampleScheduler } from "./audio/SampleScheduler";
-import {
-    formatRenderResolutionPreference,
-    isRenderResolutionPreference,
-    type RenderResolutionPreference,
-} from "./storyboard/renderResolution";
+import { isRenderResolutionPreference, type RenderResolutionPreference } from "./storyboard/renderResolution";
 import { StoryboardRenderer, type RendererBackendPreference } from "./storyboard/renderer";
 import { disposeResolvedAssets, loadStoryboardAssets, type ResolvedAssets } from "./storyboard/assets";
 import { parseStoryboard } from "./storyboard/parser";
@@ -542,17 +538,6 @@ export class App {
             }
             this.ui.setControlsVisible(true);
         }
-    }
-}
-
-function formatRendererBackend(backend: RendererBackendPreference): string {
-    switch (backend) {
-        case "webgpu":
-            return "WebGPU";
-        case "webgl":
-            return "WebGL";
-        case "canvas":
-            return "Canvas";
     }
 }
 
