@@ -1,5 +1,5 @@
 import { Application, Container, Sprite, Texture, type FederatedPointerEvent } from "pixi.js";
-import type { PreparedStoryboardData } from "../types/storyboard";
+import { type PreparedStoryboardData } from "../types/storyboard";
 import { clamp } from "../utils/dom";
 import { getMimeType, isVideoPath } from "../utils/path";
 import type { ResolvedAssets } from "./assets";
@@ -33,6 +33,7 @@ import {
 import type { GameplayState, RenderVisual } from "./helpers";
 import { getRendererBackend, resolveGpuInfo, StatsOverlay, STATS_PANEL_MARGIN } from "./statsOverlay";
 import type { RendererStats } from "./statsOverlay";
+import { createVisualInspectorLabel } from "./info";
 
 const FPS_UPDATE_INTERVAL_MS = 300;
 
@@ -96,9 +97,17 @@ export class StoryboardRenderer {
         this.canvasHost = canvasHost;
         this.backendPreference = backendPreference;
         this.stageRoot.sortableChildren = true;
+        this.stageRoot.label = "storyboard-root";
         this.videoLayer.sortableChildren = true;
+        this.videoLayer.label = "video-layer";
         this.playfieldRoot.sortableChildren = true;
+        this.playfieldRoot.label = "playfield-root";
         this.contentLayer.sortableChildren = true;
+        this.backgroundLayer.label = "background-layer";
+        this.contentLayer.label = "content-layer";
+        this.foregroundLayer.label = "foreground-layer";
+        this.frameBackground.label = "frame-background";
+        this.statsOverlay.container.label = "stats-overlay";
         this.frameBackground.zIndex = 0;
         this.videoLayer.zIndex = 1;
         this.playfieldRoot.zIndex = 2;
@@ -146,6 +155,9 @@ export class StoryboardRenderer {
             hello: true,
         });
 
+        //@ts-ignore
+        globalThis.__PIXI_APP__ = this.app;
+
         this.app.stage.addChild(this.stageRoot);
         this.app.stage.addChild(this.statsOverlay.container);
         this.canvasHost.replaceChildren(this.app.canvas);
@@ -183,6 +195,7 @@ export class StoryboardRenderer {
             const texture = assets.textures.get(storyboard.background.path);
             if (texture) {
                 this.backgroundSprite = new Sprite(texture);
+                this.backgroundSprite.label = `beatmap-background:${storyboard.background.path}`;
                 this.backgroundSprite.anchor.set(0.5);
                 this.backgroundLayer.addChild(this.backgroundSprite);
                 this.backgroundBorder = createLayoutBorder(
@@ -214,6 +227,7 @@ export class StoryboardRenderer {
                         ? storyboard.video.startTime + this.videoElement.duration * 1000
                         : 0;
                     this.videoSprite = new Sprite(Texture.from(this.videoElement));
+                    this.videoSprite.label = `storyboard-video:${storyboard.video.path}`;
                     this.videoSprite.anchor.set(0.5);
                     this.videoSprite.visible = false;
                     this.videoSprite.zIndex = 0;
@@ -232,6 +246,7 @@ export class StoryboardRenderer {
             if (textures.length === 0) return;
 
             const sprite = new Sprite(textures[0]);
+            sprite.label = createVisualInspectorLabel(visual, index);
             const anchor = anchorFromOrigin(visual.origin);
             sprite.anchor.set(anchor[0], anchor[1]);
             sprite.visible = false;
