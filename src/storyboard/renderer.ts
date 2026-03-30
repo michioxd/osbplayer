@@ -757,7 +757,7 @@ export class StoryboardRenderer {
 
     private applyVisualStateAtTime(entry: RenderVisual, time: number): void {
         const wasVisible = entry.sprite.visible;
-        renderVisualAtTime(entry, time, this.gameplayState);
+        renderVisualAtTime(entry, time, this.gameplayState, this.frameWidth);
         this.visibleElementCount += Number(entry.sprite.visible) - Number(wasVisible);
     }
 }

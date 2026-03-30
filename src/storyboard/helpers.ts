@@ -61,7 +61,12 @@ export function isVisualDynamic(visual: PreparedStoryboardVisual, textures: Text
     );
 }
 
-export function renderVisualAtTime(entry: RenderVisual, time: number, gameplayState: GameplayState): void {
+export function renderVisualAtTime(
+    entry: RenderVisual,
+    time: number,
+    gameplayState: GameplayState,
+    frameWidth: number,
+): void {
     const { sprite, visual, textures, indices } = entry;
 
     if (
@@ -115,7 +120,7 @@ export function renderVisualAtTime(entry: RenderVisual, time: number, gameplaySt
     const finalScaleX = scaleX * (flipH ? -1 : 1);
     const finalScaleY = scaleY * (flipV ? -1 : 1);
 
-    if (isSpriteCertainlyOffscreen(x, y, anchorX, anchorY, finalScaleX, finalScaleY, texture)) {
+    if (isSpriteCertainlyOffscreen(x, y, anchorX, anchorY, finalScaleX, finalScaleY, texture, frameWidth)) {
         if (sprite.visible) sprite.visible = false;
         return;
     }
@@ -380,6 +385,7 @@ function isSpriteCertainlyOffscreen(
     scaleX: number,
     scaleY: number,
     texture: Texture,
+    frameWidth: number,
 ): boolean {
     const width = getTextureWidth(texture) * Math.abs(scaleX);
     const height = getTextureHeight(texture) * Math.abs(scaleY);
@@ -388,9 +394,11 @@ function isSpriteCertainlyOffscreen(
     const verticalReach = Math.max(anchorY, 1 - anchorY) * height;
     const conservativeExtent = horizontalReach + verticalReach;
 
+    const horizontalOffset = Math.max(0, (frameWidth - STORYBOARD_WIDTH) / 2);
+
     return (
-        x + conservativeExtent < 0 ||
-        x - conservativeExtent > STORYBOARD_WIDTH ||
+        x + conservativeExtent < -horizontalOffset ||
+        x - conservativeExtent > STORYBOARD_WIDTH + horizontalOffset ||
         y + conservativeExtent < 0 ||
         y - conservativeExtent > STORYBOARD_HEIGHT
     );

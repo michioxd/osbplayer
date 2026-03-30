@@ -511,5 +511,10 @@ a {
             left: 50%;
             transform: translateX(-50%);
         }
+
+        .spacing {
+            width: 100%;
+            flex: 1;
+        }
     }
 }
