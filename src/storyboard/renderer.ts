@@ -109,10 +109,14 @@ export class StoryboardRenderer {
     async init(): Promise<void> {
         await this.app.init({
             resizeTo: this.canvasHost,
-            antialias: true,
+            antialias: false,
+            resolution: 1,
+            autoDensity: true,
             backgroundColor: 0x000000,
-            eventMode: "static",
+            eventMode: "none",
             preference: "webgpu",
+            powerPreference: "high-performance",
+            clearBeforeRender: true,
         });
 
         this.app.stage.addChild(this.stageRoot);
@@ -220,6 +224,7 @@ export class StoryboardRenderer {
                 isDynamic: isVisualDynamic(visual, textures),
                 active: false,
                 dynamicListIndex: -1,
+                indices: new Int32Array(8),
             });
         });
 

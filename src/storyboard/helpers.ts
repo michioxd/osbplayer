@@ -7,7 +7,7 @@ import type {
 } from "../types/storyboard";
 import { Layer, Origin } from "../types/storyboard";
 import { clamp } from "../utils/dom";
-import { isTimeInRanges, keyframePairValueAt, keyframeValueAt, packRgb } from "./interpolation";
+import { isTimeInRanges, keyframeValueAt, packRgb } from "./interpolation";
 import type { ResolvedAssets } from "./assets";
 import type { LayoutBorder } from "./layoutBorders";
 
@@ -26,6 +26,7 @@ export interface RenderVisual {
     isDynamic: boolean;
     active: boolean;
     dynamicListIndex: number;
+    indices: Int32Array;
 }
 
 export function resolveVisualTextures(visual: PreparedStoryboardVisual, assets: ResolvedAssets): Texture[] {
@@ -61,82 +62,108 @@ export function isVisualDynamic(visual: PreparedStoryboardVisual, textures: Text
 }
 
 export function renderVisualAtTime(entry: RenderVisual, time: number, gameplayState: GameplayState): void {
-    const { sprite, visual, textures } = entry;
+    const { sprite, visual, textures, indices } = entry;
 
-    if (!shouldRenderForGameplayState(visual, gameplayState)) {
-        sprite.visible = false;
+    if (
+        !shouldRenderForGameplayState(visual, gameplayState) ||
+        time < visual.activeTime[0] ||
+        time > visual.activeTime[1]
+    ) {
+        if (sprite.visible) sprite.visible = false;
         return;
     }
 
-    if (time < visual.activeTime[0] || time > visual.activeTime[1]) {
-        sprite.visible = false;
-        return;
-    }
-
-    const alpha = keyframeValueAt(visual.opacityKeyframes, time, 1);
+    const alpha = keyframeValueAt(visual.opacityKeyframes, time, 1, indices, 0);
     const uniformScale = keyframeValueAt(
         visual.uniformScaleKeyframes,
         time,
         resolveEarlyUniformScaleDefault(visual, time),
+        indices,
+        1,
     );
-    const [vectorScaleX, vectorScaleY] = keyframePairValueAt(visual.vectorScaleKeyframes, time, [1, 1]);
+    const vectorScaleX = keyframeValueAt(visual.vectorScaleKeyframes[0], time, 1, indices, 2);
+    const vectorScaleY = keyframeValueAt(visual.vectorScaleKeyframes[1], time, 1, indices, 3);
 
     const scaleX = uniformScale * vectorScaleX;
     const scaleY = uniformScale * vectorScaleY;
 
     if (alpha <= 0 || scaleX === 0 || scaleY === 0) {
-        sprite.visible = false;
+        if (sprite.visible) sprite.visible = false;
         return;
     }
 
-    const [x, y] = keyframePairValueAt(visual.positionKeyframes, time, [visual.x, visual.y]);
-    const rotation = keyframeValueAt(visual.rotationKeyframes, time, 0);
-    const colour = keyframeValueAt(visual.colourKeyframes, time, [255, 255, 255]);
+    const x = keyframeValueAt(visual.positionKeyframes[0], time, visual.x, indices, 4);
+    const y = keyframeValueAt(visual.positionKeyframes[1], time, visual.y, indices, 5);
+
+    if (x < -300 || x > 1000 || y < -300 || y > 800) {
+        if (sprite.visible) sprite.visible = false;
+        return;
+    }
+
+    const rotation = keyframeValueAt(visual.rotationKeyframes, time, 0, indices, 6);
+
+    const colourArr = keyframeValueAt<number[] | null>(visual.colourKeyframes, time, null, indices, 7);
+    const tint = colourArr ? packRgb(colourArr) : 0xffffff;
+
     const flipH = isTimeInRanges(visual.flipHRange, time);
     const flipV = isTimeInRanges(visual.flipVRange, time);
     const additive = isTimeInRanges(visual.additiveRange, time) || shouldBackfillAdditiveRange(visual, time);
-    const adjustedAnchor = adjustAnchorForTransforms(visual.origin, [vectorScaleX, vectorScaleY], flipH, flipV);
 
-    sprite.visible = true;
-    sprite.anchor.set(adjustedAnchor[0], adjustedAnchor[1]);
-    sprite.position.set(x, y);
-    sprite.scale.set(scaleX * (flipH ? -1 : 1), scaleY * (flipV ? -1 : 1));
-    sprite.rotation = rotation;
-    sprite.alpha = clamp(alpha, 0, 1);
-    sprite.tint = packRgb(colour);
-    sprite.blendMode = additive ? "add" : "normal";
+    let anchorX = getAnchorX(visual.origin);
+    let anchorY = getAnchorY(visual.origin);
+    if (flipH !== vectorScaleX < 0) anchorX = 1 - anchorX;
+    if (flipV !== vectorScaleY < 0) anchorY = 1 - anchorY;
+
+    if (!sprite.visible) sprite.visible = true;
+
+    if (sprite.anchor.x !== anchorX || sprite.anchor.y !== anchorY) sprite.anchor.set(anchorX, anchorY);
+    if (sprite.position.x !== x || sprite.position.y !== y) sprite.position.set(x, y);
+
+    const finalScaleX = scaleX * (flipH ? -1 : 1);
+    const finalScaleY = scaleY * (flipV ? -1 : 1);
+    if (sprite.scale.x !== finalScaleX || sprite.scale.y !== finalScaleY) sprite.scale.set(finalScaleX, finalScaleY);
+
+    if (sprite.rotation !== rotation) sprite.rotation = rotation;
+
+    const finalAlpha = clamp(alpha, 0, 1);
+    if (sprite.alpha !== finalAlpha) sprite.alpha = finalAlpha;
+
+    if (sprite.tint !== tint) sprite.tint = tint;
+
+    const blendMode = additive ? "add" : "normal";
+    if (sprite.blendMode !== blendMode) sprite.blendMode = blendMode;
 
     if (visual.kind === "animation") {
         const texture = resolveAnimationFrame(visual, textures, time);
-        if (texture) {
+        if (texture && sprite.texture !== texture) {
             sprite.texture = texture;
         }
     }
 }
 
+const ORIGIN_ANCHORS: Record<Origin, { x: number; y: number }> = {
+    [Origin.TopLeft]: { x: 0, y: 0 },
+    [Origin.TopCentre]: { x: 0.5, y: 0 },
+    [Origin.TopRight]: { x: 1, y: 0 },
+    [Origin.CentreLeft]: { x: 0, y: 0.5 },
+    [Origin.Centre]: { x: 0.5, y: 0.5 },
+    [Origin.CentreRight]: { x: 1, y: 0.5 },
+    [Origin.BottomLeft]: { x: 0, y: 1 },
+    [Origin.BottomCentre]: { x: 0.5, y: 1 },
+    [Origin.BottomRight]: { x: 1, y: 1 },
+};
+
+function getAnchorX(origin: Origin): number {
+    return ORIGIN_ANCHORS[origin]?.x ?? 0.5;
+}
+
+function getAnchorY(origin: Origin): number {
+    return ORIGIN_ANCHORS[origin]?.y ?? 0.5;
+}
+
 export function anchorFromOrigin(origin: Origin): [number, number] {
-    switch (origin) {
-        case Origin.TopLeft:
-            return [0, 0];
-        case Origin.TopCentre:
-            return [0.5, 0];
-        case Origin.TopRight:
-            return [1, 0];
-        case Origin.CentreLeft:
-            return [0, 0.5];
-        case Origin.Centre:
-            return [0.5, 0.5];
-        case Origin.CentreRight:
-            return [1, 0.5];
-        case Origin.BottomLeft:
-            return [0, 1];
-        case Origin.BottomCentre:
-            return [0.5, 1];
-        case Origin.BottomRight:
-            return [1, 1];
-        default:
-            return [0.5, 0.5];
-    }
+    const anchor = ORIGIN_ANCHORS[origin] || ORIGIN_ANCHORS[Origin.Centre];
+    return [anchor.x, anchor.y];
 }
 
 export function shouldUseWidescreenStoryboard(storyboard: PreparedStoryboardData): boolean {
@@ -336,27 +363,6 @@ function resolveAnimationFrame(
     }
 
     return textures[rawIndex % textures.length];
-}
-
-function adjustAnchorForTransforms(
-    origin: Origin,
-    vectorScale: [number, number],
-    flipH: boolean,
-    flipV: boolean,
-): [number, number] {
-    const anchor = [...anchorFromOrigin(origin)] as [number, number];
-    const hasNegativeScaleX = vectorScale[0] < 0;
-    const hasNegativeScaleY = vectorScale[1] < 0;
-
-    if (flipH !== hasNegativeScaleX) {
-        anchor[0] = 1 - anchor[0];
-    }
-
-    if (flipV !== hasNegativeScaleY) {
-        anchor[1] = 1 - anchor[1];
-    }
-
-    return anchor;
 }
 
 function resolveEarlyUniformScaleDefault(visual: PreparedStoryboardVisual, time: number): number {
